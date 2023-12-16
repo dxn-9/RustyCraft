@@ -103,9 +103,12 @@ pub fn create_cube_mesh() -> Mesh {
         22, 21, 23
     ];
 
-    let translation = Vec3::new(0.0, 0.0, 0.5);
-    let scale = Vec3::new(0.5, 0.5, 0.5);
+    let translation = Vec3::new(0.0, 0.0, 0.0);
+    let scale = Vec3::new(1.0, 1.0, 1.0);
     let rotation = Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0);
+
+    let _world_matrix =
+        Mat4::from_scale_rotation_translation(scale, rotation, translation).to_cols_array_2d();
 
     Mesh {
         translation,
@@ -114,7 +117,7 @@ pub fn create_cube_mesh() -> Mesh {
         name: "square_mesh".to_string(),
         elements_count: _indices.len() as u32,
         instances: 1,
-        _world_matrix: Mat4::IDENTITY.to_cols_array_2d(),
+        _world_matrix,
         _vertices,
         _indices,
     }
