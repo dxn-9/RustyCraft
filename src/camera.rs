@@ -1,12 +1,19 @@
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
 const SENSITIVITY: f32 = 0.001;
-const CAMERA_SPEED: f32 = 100.0;
+const CAMERA_SPEED: f32 = 10.0;
 
 pub struct CameraController {
-    speed: Vec3,
+    pub movement_vector: Vec3,
 }
 
+impl Default for CameraController {
+    fn default() -> Self {
+        Self {
+            movement_vector: vec3(0.0, 0.0, 0.0),
+        }
+    }
+}
 pub struct Camera {
     pub eye: Vec3,
     pub yaw: f32,
@@ -57,7 +64,6 @@ impl Camera {
         let right = Vec3::cross(forward, Vec3::Y);
 
         if direction.x > 0.0 {
-            println!("RIGHT {right:?}");
             self.eye += right * CAMERA_SPEED * delta_time;
         } else if direction.x < 0.0 {
             self.eye -= right * CAMERA_SPEED * delta_time;

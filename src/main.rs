@@ -5,6 +5,7 @@ use std::{
 };
 
 use bytemuck::{Pod, Zeroable};
+use camera::CameraController;
 use glam::vec2;
 use model::Vertex;
 use state::State;
@@ -88,7 +89,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     }
                     WindowEvent::CursorLeft { .. } => cursor_in = false,
                     WindowEvent::RedrawRequested => {
-                        state.update();
+                        state.update(delta_time.as_secs_f32());
                         state.draw();
                         delta_time = start.elapsed() - previous_frame;
                         previous_frame = start.elapsed();

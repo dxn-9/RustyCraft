@@ -1,14 +1,14 @@
 use std::f32::consts;
 
 use crate::{
-    camera::Camera,
+    camera::{Camera, CameraController},
     pipeline::{Pipeline, Uniforms},
     texture::Texture,
 };
-use glam::{vec2, Quat};
+use glam::{vec2, Quat, Vec3};
 use winit::{
     dpi::PhysicalSize,
-    event::{DeviceEvent, KeyEvent},
+    event::{DeviceEvent, ElementState, KeyEvent},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey, SmolStr},
     window::Window,
 };
@@ -77,41 +77,38 @@ impl State {
             queue,
             surface,
             adapter,
+            camera_controller: CameraController::default(),
         }
     }
     pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
-        let mut movement_vector = glam::Vec3::ZERO;
+        let is_pressed: f32 = if event.state.is_pressed() { 1. } else { 0. };
 
         match event {
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyW),
                 ..
-            } => movement_vector.z = 1.0,
+            } => self.camera_controller.movement_vector.z = 1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyS),
                 ..
-            } => movement_vector.z = -1.0,
+            } => self.camera_controller.movement_vector.z = -1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyA),
                 ..
-            } => movement_vector.x = -1.0,
+            } => self.camera_controller.movement_vector.x = -1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyD),
                 ..
-            } => movement_vector.x = 1.0,
+            } => self.camera_controller.movement_vector.x = 1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyE),
                 ..
-            } => movement_vector.y = 1.0,
+            } => self.camera_controller.movement_vector.y = 1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyQ),
                 ..
-            } => movement_vector.y = -1.0,
+            } => self.camera_controller.movement_vector.y = -1.0 * is_pressed,
             _ => {}
-        }
-
-        if movement_vector != glam::Vec3::ZERO {
-            self.camera.move_camera(&movement_vector, delta_time);
         }
     }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
@@ -127,7 +124,7 @@ impl State {
                 Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
-    pub fn update(&mut self) {
+    pub fn update(&mut self, delta_time: f32) {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
@@ -140,6 +137,10 @@ impl State {
             0,
             bytemuck::cast_slice(&[self.pipeline.mesh._world_matrix]),
         );
+        if self.camera_controller.movement_vector != Vec3::ZERO {
+            self.camera
+                .move_camera(&self.camera_controller.movement_vector, delta_time)
+        }
 
         if self.camera.needs_update {
             let uniforms = Uniforms::from(&self.camera);
@@ -194,13 +195,13 @@ impl State {
                 occlusion_query_set: None,
             });
 
+            rpass.set_pipeline(&self.pipeline.pipeline);
             rpass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
             rpass.set_bind_group(0, &self.pipeline.bind_group_0, &[]);
             rpass.set_index_buffer(
                 self.pipeline.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
             );
-            rpass.set_pipeline(&self.pipeline.pipeline);
             rpass.draw_indexed(
                 0..self.pipeline.mesh.elements_count,
                 0,
@@ -222,4 +223,5 @@ pub struct State {
     pub config: wgpu::SurfaceConfiguration,
     pub pipeline: Pipeline,
     pub camera: Camera,
+    pub camera_controller: CameraController,
 }
