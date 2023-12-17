@@ -1,240 +1,17 @@
+use std::f32::consts;
+
 use crate::{
-    model::{create_cube_mesh, Mesh, ModelVertex, Vertex},
+    camera::Camera,
+    pipeline::{Pipeline, Uniforms},
     texture::Texture,
 };
-use bytemuck::{Pod, Zeroable};
-use glam::Quat;
-use wgpu::{util::DeviceExt, Device};
-use winit::{dpi::PhysicalSize, window::Window};
-
-pub struct Pipeline {
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub world_buffer: wgpu::Buffer,
-    pub projection_buffer: wgpu::Buffer,
-    pub pipeline: wgpu::RenderPipeline,
-    pub bind_group_0: wgpu::BindGroup,
-    pub depth_texture: Texture,
-    pub mesh: Mesh,
-}
-
-struct Matrices {
-    view: glam::Mat4,
-    projection: glam::Mat4,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Pod, Zeroable)]
-struct Uniforms {
-    view: [f32; 16],
-    projection: [f32; 16],
-}
-
-impl From<&Matrices> for Uniforms {
-    fn from(mat: &Matrices) -> Self {
-        Self {
-            view: *mat.view.as_ref(),
-            projection: *mat.projection.as_ref(),
-        }
-    }
-}
-
-impl Pipeline {
-    fn generate_matrices(aspect_ratio: f32) -> Matrices {
-        let projection =
-            glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, aspect_ratio, 0.1, 1000.0);
-        // This is only for initiation, it will get updated separately
-        let view =
-            glam::Mat4::look_at_rh(glam::vec3(0.0, 0.0, -5.0), glam::Vec3::ZERO, glam::Vec3::Y);
-
-        Matrices { projection, view }
-    }
-
-    pub fn new(
-        device: &wgpu::Device,
-        surface: &wgpu::Surface,
-        adapter: &wgpu::Adapter,
-        config: &wgpu::SurfaceConfiguration,
-    ) -> Self {
-        let swapchain_capabilities = surface.get_capabilities(&adapter);
-        let swapchain_format = swapchain_capabilities.formats[0];
-
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
-        });
-        let cube_mesh = create_cube_mesh();
-        let vertex_size = std::mem::size_of::<ModelVertex>();
-
-        // Vertex buffer
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex_buffer"),
-            contents: bytemuck::cast_slice(&cube_mesh._vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let vertex_buffers = [wgpu::VertexBufferLayout {
-            array_stride: vertex_size as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x3,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                },
-            ],
-        }];
-        // Index buffer
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("index_buffer"),
-            contents: bytemuck::cast_slice(&cube_mesh._indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        // Bind group @0
-
-        let world_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("transform_buffer"),
-            contents: bytemuck::cast_slice(&[cube_mesh._world_matrix]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // Projection matrix
-        let matrices = Self::generate_matrices(config.width as f32 / config.height as f32);
-        let uniforms = Uniforms::from(&matrices);
-
-        println!("UNIFORMS {uniforms:?}");
-
-        let projection_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("projection_matrix"),
-            contents: bytemuck::cast_slice(&[uniforms.projection]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // View matrix
-        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("projection_matrix"),
-            contents: bytemuck::cast_slice(&[uniforms.view]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // Bind groups
-        let bind_group_layout_0 =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("bind_group_0"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-        let bind_group_0 = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout_0,
-            label: None,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: world_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: projection_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: view_buffer.as_entire_binding(),
-                },
-            ],
-        });
-        // Textures
-        let depth_texture = Texture::create_depth_texture(device, config, "depth_texture");
-
-        // Pipeline layouts
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout_0],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &vertex_buffers,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(swapchain_format.into())],
-            }),
-
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: Texture::DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-
-        Self {
-            projection_buffer,
-            world_buffer,
-            depth_texture,
-            bind_group_0,
-            index_buffer,
-            vertex_buffer,
-            pipeline: render_pipeline,
-            mesh: cube_mesh,
-        }
-    }
-}
-
-pub struct State {
-    pub surface: wgpu::Surface,
-    pub instance: wgpu::Instance,
-    pub adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub config: wgpu::SurfaceConfiguration,
-    pub pipeline: Pipeline,
-}
+use glam::{vec2, Quat};
+use winit::{
+    dpi::PhysicalSize,
+    event::{DeviceEvent, KeyEvent},
+    keyboard::{Key, KeyCode, NamedKey, PhysicalKey, SmolStr},
+    window::Window,
+};
 
 impl State {
     pub async fn new(window: &Window) -> Self {
@@ -275,10 +52,24 @@ impl State {
             alpha_mode: swapchain_capabilities.alpha_modes[0],
             view_formats: vec![],
         };
-        let pipeline = Pipeline::new(&device, &surface, &adapter, &config);
+
+        let camera = Camera {
+            aspect_ratio: config.width as f32 / config.height as f32,
+            eye: glam::vec3(0.0, 0.0, -5.0),
+            yaw: consts::FRAC_PI_2,
+            pitch: 0.0,
+
+            fovy: consts::FRAC_PI_4,
+            znear: 0.1,
+            zfar: 1000.,
+            needs_update: false,
+        };
+
+        let pipeline = Pipeline::new(&device, &surface, &adapter, &config, &camera);
 
         surface.configure(&device, &config);
         Self {
+            camera,
             pipeline,
             config,
             instance,
@@ -288,6 +79,45 @@ impl State {
             adapter,
         }
     }
+    pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
+        let mut movement_vector = glam::Vec3::ZERO;
+
+        match event {
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyW),
+                ..
+            } => movement_vector.z = 1.0,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyS),
+                ..
+            } => movement_vector.z = -1.0,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyA),
+                ..
+            } => movement_vector.x = -1.0,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyD),
+                ..
+            } => movement_vector.x = 1.0,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyE),
+                ..
+            } => movement_vector.y = 1.0,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyQ),
+                ..
+            } => movement_vector.y = -1.0,
+            _ => {}
+        }
+
+        if movement_vector != glam::Vec3::ZERO {
+            self.camera.move_camera(&movement_vector, delta_time);
+        }
+    }
+    pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
+        self.camera.move_target(delta)
+    }
+
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.config.width = new_size.width.max(1);
@@ -310,6 +140,17 @@ impl State {
             0,
             bytemuck::cast_slice(&[self.pipeline.mesh._world_matrix]),
         );
+
+        if self.camera.needs_update {
+            let uniforms = Uniforms::from(&self.camera);
+            self.queue.write_buffer(
+                &self.pipeline.view_buffer,
+                0,
+                bytemuck::cast_slice(&[uniforms.view]),
+            );
+
+            self.camera.needs_update = false;
+        }
     }
     pub fn draw(&self) {
         let frame = self
@@ -370,4 +211,15 @@ impl State {
         self.queue.submit(Some(encoder.finish()));
         frame.present();
     }
+}
+
+pub struct State {
+    pub surface: wgpu::Surface,
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub config: wgpu::SurfaceConfiguration,
+    pub pipeline: Pipeline,
+    pub camera: Camera,
 }
