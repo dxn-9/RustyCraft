@@ -2,6 +2,7 @@ pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub name: String,
 }
 
 impl Texture {
@@ -44,6 +45,34 @@ impl Texture {
             texture,
             view,
             sampler,
+            name: String::from(label),
         }
+    }
+
+    pub fn from_path(
+        path: &str,
+        image_name: String,
+    ) -> Result<Texture, Box<dyn std::error::Error>> {
+        let f = std::fs::File::open(path)?;
+        let reader = std::io::BufReader::new(f);
+        let image = image::load(reader, image::ImageFormat::Png)?;
+
+        let size = wgpu::Extent3d {
+            width: image.width(),
+            height: image.height(),
+            depth_or_array_layers: 1,
+        };
+        // println!("{:?}", image.as_mut_rgba8())
+        // let desc = wgpu::TextureDescriptor {
+        //     label: Some(&image_name),
+        //     size,
+        //     mip_level_count: 1,
+        //     sample_count: 1,
+        //     dimension: wgpu::TextureDimension::D2,
+        //     format: wgpu::TextureFormat::Rgba16Sint
+
+        // }
+
+        todo!()
     }
 }

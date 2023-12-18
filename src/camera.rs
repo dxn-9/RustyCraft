@@ -45,8 +45,8 @@ impl Camera {
 
     // target only moves in y and x direction
     pub fn move_target(&mut self, direction: &Vec2) {
-        self.yaw -= direction.x * SENSITIVITY;
-        self.pitch += direction.y * SENSITIVITY;
+        self.yaw += direction.x * SENSITIVITY;
+        self.pitch -= direction.y * SENSITIVITY;
 
         self.needs_update = true;
     }

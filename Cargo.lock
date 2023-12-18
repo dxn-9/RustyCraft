@@ -944,6 +944,7 @@ dependencies = [
  "glob",
  "image",
  "log",
+ "obj-rs",
  "pollster",
  "tobj",
  "wgpu",
@@ -1097,6 +1098,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "obj-rs"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a502182538a65adc7e3843f820eb5a4bd3ff395017e0ba6e3ccad404e9ea1da3"
+dependencies = [
+ "num-traits",
+ "serde",
 ]
 
 [[package]]

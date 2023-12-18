@@ -1,6 +1,9 @@
 use std::{
+    fs::File,
+    io::BufReader,
     mem,
     ops::ControlFlow,
+    process::exit,
     time::{Duration, Instant},
 };
 
@@ -9,6 +12,7 @@ use camera::CameraController;
 use glam::vec2;
 use model::Vertex;
 use state::State;
+use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
@@ -24,6 +28,13 @@ mod state;
 mod texture;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
+    let input = BufReader::new(File::open("assets/cube.obj").unwrap());
+    let model = load_obj("assets/cube.obj", &LoadOptions::default()).unwrap();
+
+    println!("{:?}", model);
+    exit(0);
+    // let model: Obj = load_obj(input).unwrap();
+
     let start = Instant::now();
     let mut previous_frame = start.elapsed();
     let mut delta_time = start.elapsed();
