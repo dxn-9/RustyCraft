@@ -21,10 +21,12 @@ var<uniform> view: mat4x4<f32>;
 
 
 @vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
+fn vs_main(in: VertexInput, @builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
     out.vertex_color = in.vertex_color;
+
     out.clip_position = projection * view * transform * vec4<f32>(in.position.xyz, 1.0);
+
     return out;
 }
 

@@ -65,12 +65,10 @@ impl State {
             needs_update: false,
         };
 
-        let pipeline = Pipeline::new(&device, &surface, &adapter, &config, &camera);
-
         surface.configure(&device, &config);
-        Self {
+        let mut state = Self {
             camera,
-            pipeline,
+            pipelines: vec![],
             config,
             instance,
             device,
@@ -78,7 +76,12 @@ impl State {
             surface,
             adapter,
             camera_controller: CameraController::default(),
-        }
+        };
+
+        let pipeline = Pipeline::new(&state);
+        state.pipelines.push(pipeline);
+
+        state
     }
     pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
         let is_pressed: f32 = if event.state.is_pressed() { 1. } else { 0. };
@@ -120,22 +123,21 @@ impl State {
             self.config.width = new_size.width.max(1);
             self.config.height = new_size.height.max(1);
             self.surface.configure(&self.device, &self.config);
-            self.pipeline.depth_texture =
-                Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+            self.pipelines[0].depth_texture = Texture::create_depth_texture(&self);
         }
     }
     pub fn update(&mut self, delta_time: f32) {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        self.pipeline.mesh.rotation = self.pipeline.mesh.rotation * rotation_increment;
+        self.pipelines[0].mesh.rotation = self.pipelines[0].mesh.rotation * rotation_increment;
         // self.pipeline.mesh.recalculate_world_matrix();
 
         // self.pipeline.mesh.rotation = angle;
         self.queue.write_buffer(
-            &self.pipeline.world_buffer,
+            &self.pipelines[0].world_buffer,
             0,
-            bytemuck::cast_slice(&[self.pipeline.mesh._world_matrix]),
+            bytemuck::cast_slice(&[self.pipelines[0].mesh._world_matrix]),
         );
         if self.camera_controller.movement_vector != Vec3::ZERO {
             self.camera
@@ -145,7 +147,7 @@ impl State {
         if self.camera.needs_update {
             let uniforms = Uniforms::from(&self.camera);
             self.queue.write_buffer(
-                &self.pipeline.view_buffer,
+                &self.pipelines[0].view_buffer,
                 0,
                 bytemuck::cast_slice(&[uniforms.view]),
             );
@@ -184,7 +186,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.pipeline.depth_texture.view,
+                    view: &self.pipelines[0].depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -195,17 +197,17 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            rpass.set_pipeline(&self.pipeline.pipeline);
-            rpass.set_vertex_buffer(0, self.pipeline.vertex_buffer.slice(..));
-            rpass.set_bind_group(0, &self.pipeline.bind_group_0, &[]);
+            rpass.set_pipeline(&self.pipelines[0].pipeline);
+            rpass.set_vertex_buffer(0, self.pipelines[0].vertex_buffer.slice(..));
+            rpass.set_bind_group(0, &self.pipelines[0].bind_group_0, &[]);
             rpass.set_index_buffer(
-                self.pipeline.index_buffer.slice(..),
+                self.pipelines[0].index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
             );
             rpass.draw_indexed(
-                0..self.pipeline.mesh.elements_count,
+                0..self.pipelines[0].mesh.elements_count,
                 0,
-                0..self.pipeline.mesh.instances,
+                0..self.pipelines[0].mesh.instances,
             );
             // rpass.draw(0..3, 0..1);
         }
@@ -221,7 +223,7 @@ pub struct State {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    pub pipeline: Pipeline,
+    pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
     pub camera_controller: CameraController,
 }
