@@ -9,13 +9,13 @@ pub trait Vertex {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ModelVertex {
     pub _position: [f32; 4],
-    pub _vertex_color: [f32; 4],
+    pub _tex_coords: [f32; 2],
 }
 impl ModelVertex {
-    pub fn new(_position: [f32; 3], _vertex_color: [f32; 4]) -> Self {
+    pub fn new(_position: [f32; 3], _tex_coords: [f32; 2]) -> Self {
         Self {
             _position: [_position[0], _position[1], _position[2], 1.0],
-            _vertex_color,
+            _tex_coords,
         }
     }
 }
@@ -35,46 +35,56 @@ pub struct Mesh {
     pub _indices: Vec<u32>,
 }
 
-fn vertex(pos: [f32; 3], vc: [f32; 4]) -> ModelVertex {
+fn vertex(pos: [f32; 3], vc: [f32; 2]) -> ModelVertex {
     ModelVertex::new(pos, vc)
 }
 
 const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
+pub fn create_plane_mesh() -> Mesh {
+    let _vertices = [
+        vertex([1.0, -1.0, 1.0], [0.0, 0.0]),
+        vertex([1.0, -1.0, 1.0], [1.0, 0.0]),
+        vertex([1.0, 1.0, 1.0], [1.0, 1.0]),
+        vertex([-1.0, 1.0, 1.0], [0.0, 1.0]),
+    ];
+    todo!()
+}
+
 pub fn create_cube_mesh() -> Mesh {
     #[rustfmt::skip]
     let _vertices = vec![
         // Front
-        vertex([-1.0, -1.0, 1.0],RED ),
-        vertex([1.0, -1.0, 1.0],RED  ),
-        vertex([1.0, 1.0, 1.0], RED ),
-        vertex([-1.0, 1.0, 1.0], RED ),
-        // bottom (0, 0, -1.0)
-        vertex([-1.0, 1.0, -1.0], BLUE ),
-        vertex([1.0, 1.0, -1.0], BLUE ),
-        vertex([1.0, -1.0, -1.0], BLUE ),
-        vertex([-1.0, -1.0, -1.0],BLUE  ),
-        // right (1.0, 0, 0)
-        vertex([1.0, -1.0, -1.0],RED  ),
-        vertex([1.0, 1.0, -1.0],RED  ),
-        vertex([1.0, 1.0, 1.0], RED ),
-        vertex([1.0, -1.0, 1.0],RED  ),
-        // left (-1.0, 0, 0)
-        vertex([-1.0, -1.0, 1.0], BLUE),
-        vertex([-1.0, 1.0, 1.0], BLUE),
-        vertex([-1.0, 1.0, -1.0], BLUE),
-        vertex([-1.0, -1.0, -1.0],BLUE ),
-        // front (0, 1.0, 0)
-        vertex([1.0, 1.0, -1.0],RED  ),
-        vertex([-1.0, 1.0, -1.0],RED  ),
-        vertex([-1.0, 1.0, 1.0],RED  ),
-        vertex([1.0, 1.0, 1.0], RED ),
-        // back (0, -1.0, 0)
-        vertex([1.0, -1.0, 1.0],BLUE),
-        vertex([-1.0, -1.0, 1.0], BLUE),
-        vertex([-1.0, -1.0, -1.0],BLUE),
-        vertex([1.0, -1.0, -1.0],BLUE),
+        // vertex([-1.0, -1.0, 1.0],RED ),
+        // vertex([1.0, -1.0, 1.0],RED  ),
+        // vertex([1.0, 1.0, 1.0], RED ),
+        // vertex([-1.0, 1.0, 1.0], RED ),
+        // // bottom (0, 0, -1.0)
+        // vertex([-1.0, 1.0, -1.0], BLUE ),
+        // vertex([1.0, 1.0, -1.0], BLUE ),
+        // vertex([1.0, -1.0, -1.0], BLUE ),
+        // vertex([-1.0, -1.0, -1.0],BLUE  ),
+        // // right (1.0, 0, 0)
+        // vertex([1.0, -1.0, -1.0],RED  ),
+        // vertex([1.0, 1.0, -1.0],RED  ),
+        // vertex([1.0, 1.0, 1.0], RED ),
+        // vertex([1.0, -1.0, 1.0],RED  ),
+        // // left (-1.0, 0, 0)
+        // vertex([-1.0, -1.0, 1.0], BLUE),
+        // vertex([-1.0, 1.0, 1.0], BLUE),
+        // vertex([-1.0, 1.0, -1.0], BLUE),
+        // vertex([-1.0, -1.0, -1.0],BLUE ),
+        // // front (0, 1.0, 0)
+        // vertex([1.0, 1.0, -1.0],RED  ),
+        // vertex([-1.0, 1.0, -1.0],RED  ),
+        // vertex([-1.0, 1.0, 1.0],RED  ),
+        // vertex([1.0, 1.0, 1.0], RED ),
+        // // back (0, -1.0, 0)
+        // vertex([1.0, -1.0, 1.0],BLUE),
+        // vertex([-1.0, -1.0, 1.0], BLUE),
+        // vertex([-1.0, -1.0, -1.0],BLUE),
+        // vertex([1.0, -1.0, -1.0],BLUE),
 
     ];
     #[rustfmt::skip]
