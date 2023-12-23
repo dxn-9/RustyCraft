@@ -72,7 +72,7 @@ impl Pipeline {
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("index_buffer"),
-                contents: bytemuck::cast_slice(&cube_mesh._indices),
+                contents: bytemuck::cast_slice(&vec![0, 1, 2, 0, 2, 3]),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
@@ -108,11 +108,8 @@ impl Pipeline {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
-        let texture =
-            Texture::from_path("assets/Sprite-0001.png", "sprite".to_string(), state).unwrap();
-
         // Bind groups
-        let bind_group_layout_0 =
+        let bind_group_0_layout =
             state
                 .device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -151,7 +148,7 @@ impl Pipeline {
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bind_group_layout_0,
+            layout: &bind_group_0_layout,
             label: None,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -168,6 +165,50 @@ impl Pipeline {
                 },
             ],
         });
+
+        // Texutre bind group
+        let texture =
+            Texture::from_path("assets/Sprite-0001.png", "sprite".to_string(), state).unwrap();
+
+        let bind_group_1_layout =
+            state
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("bind_group_1"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
+
+        let bind_group_1 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("bind_group_1"),
+            layout: &bind_group_1_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+        });
         // Textures
         let depth_texture = Texture::create_depth_texture(state);
 
@@ -177,7 +218,7 @@ impl Pipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[&bind_group_layout_0],
+                    bind_group_layouts: &[&bind_group_0_layout, &bind_group_1_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -216,6 +257,7 @@ impl Pipeline {
             world_buffer,
             depth_texture,
             bind_group_0,
+            bind_group_1,
             index_buffer,
             vertex_buffer,
             pipeline: render_pipeline,
@@ -232,6 +274,7 @@ pub struct Pipeline {
     pub view_buffer: wgpu::Buffer,
     pub pipeline: wgpu::RenderPipeline,
     pub bind_group_0: wgpu::BindGroup,
+    pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
     pub mesh: Mesh,
 }

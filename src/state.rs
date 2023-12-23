@@ -200,15 +200,12 @@ impl State {
             rpass.set_pipeline(&self.pipelines[0].pipeline);
             rpass.set_vertex_buffer(0, self.pipelines[0].vertex_buffer.slice(..));
             rpass.set_bind_group(0, &self.pipelines[0].bind_group_0, &[]);
+            rpass.set_bind_group(1, &self.pipelines[0].bind_group_1, &[]);
             rpass.set_index_buffer(
                 self.pipelines[0].index_buffer.slice(..),
                 wgpu::IndexFormat::Uint32,
             );
-            rpass.draw_indexed(
-                0..self.pipelines[0].mesh.elements_count,
-                0,
-                0..self.pipelines[0].mesh.instances,
-            );
+            rpass.draw_indexed(0..6, 0, 0..self.pipelines[0].mesh.instances);
             // rpass.draw(0..3, 0..1);
         }
         self.queue.submit(Some(encoder.finish()));
