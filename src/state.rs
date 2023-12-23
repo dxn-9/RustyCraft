@@ -3,6 +3,7 @@ use std::f32::consts;
 use crate::{
     camera::{Camera, CameraController},
     material::Texture,
+    model::InstanceData,
     pipeline::{Pipeline, Uniforms},
 };
 use glam::{vec2, Quat, Vec3};
@@ -126,7 +127,7 @@ impl State {
             self.pipelines[0].depth_texture = Texture::create_depth_texture(&self);
         }
     }
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32, total_time: f32) {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
@@ -140,6 +141,28 @@ impl State {
                 0,
                 bytemuck::cast_slice(&[mesh._world_matrix]),
             );
+        }
+        // this is bad, it should in a uniform, but im just testing
+        {
+            self.pipelines[0].model.instances = self.pipelines[0]
+                .model
+                .instances
+                .iter()
+                .enumerate()
+                .map(|(i, _)| InstanceData {
+                    _translate: glam::vec3((i * 2) as f32, f32::sin(i as f32 + total_time), 0.0)
+                        .into(),
+                })
+                .collect();
+            use wgpu::util::DeviceExt;
+
+            self.pipelines[0].model.instances_buffer =
+                self.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!("instance_buffer-cube")),
+                        contents: bytemuck::cast_slice(&self.pipelines[0].model.instances),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
         }
 
         if self.camera_controller.movement_vector != Vec3::ZERO {

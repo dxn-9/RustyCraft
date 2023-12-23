@@ -11,6 +11,7 @@ use bytemuck::{Pod, Zeroable};
 use camera::CameraController;
 use glam::vec2;
 use material::Texture;
+use model::VertexData;
 use state::State;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
@@ -31,7 +32,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     // let model: Obj = load_obj(input).unwrap();
 
     let start = Instant::now();
-    let mut previous_frame = start.elapsed();
+    let mut total_time = start.elapsed();
     let mut delta_time = start.elapsed();
 
     let mut size = window.inner_size();
@@ -41,9 +42,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let mut state = State::new(&window).await;
     let window = &window;
 
-    // window
-    //     .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-    //     .unwrap();
+    window
+        .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+        .unwrap();
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;
@@ -95,10 +96,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     }
                     WindowEvent::CursorLeft { .. } => cursor_in = false,
                     WindowEvent::RedrawRequested => {
-                        state.update(delta_time.as_secs_f32());
+                        delta_time = start.elapsed() - total_time;
+                        total_time = start.elapsed();
+
+                        state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
                         state.draw();
-                        delta_time = start.elapsed() - previous_frame;
-                        previous_frame = start.elapsed();
 
                         window.request_redraw();
                     }
