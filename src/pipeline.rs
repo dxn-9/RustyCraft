@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     camera::Camera,
     material::Texture,
-    model::{Mesh, Model, VertexData},
+    model::{InstanceData, Mesh, Model, PerVertex, VertexData},
     state::State,
 };
 
@@ -41,8 +41,24 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
-        let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
+        let mut model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
+        // INSTANCES TEST
+        model.instances = (0..10)
+            .map(|i| InstanceData {
+                _translate: glam::vec3((i * 2) as f32, 0.0, 0.0).into(),
+            })
+            .collect();
 
+        model.instances_buffer =
+            state
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("instance_buffer-cube")),
+                    contents: bytemuck::cast_slice(&model.instances),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+
+        println!("{:?}", model.instances);
         // Projection matrix
 
         let uniforms = Uniforms::from(&state.camera);
@@ -193,7 +209,7 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[VertexData::desc()],
+                        buffers: &[VertexData::desc(), InstanceData::desc()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,

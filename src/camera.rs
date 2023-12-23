@@ -51,7 +51,6 @@ impl Camera {
         self.needs_update = true;
     }
     pub fn move_camera(&mut self, direction: &Vec3, delta_time: f32) {
-        println!("MOVING {:?} - {delta_time}", self.calc_target());
         let forward = self.calc_target();
 
         // z axis

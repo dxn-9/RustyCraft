@@ -202,6 +202,8 @@ impl State {
 
             for pipeline in self.pipelines.iter() {
                 rpass.set_pipeline(&pipeline.pipeline);
+                rpass.set_vertex_buffer(1, pipeline.model.instances_buffer.slice(..));
+
                 for mesh in pipeline.model.meshes.iter() {
                     rpass.set_vertex_buffer(
                         0,
@@ -219,7 +221,11 @@ impl State {
                     );
                     rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
                     rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
-                    rpass.draw_indexed(0..mesh._indices.len() as u32, 0, 0..mesh.instances);
+                    rpass.draw_indexed(
+                        0..mesh._indices.len() as u32,
+                        0,
+                        0..pipeline.model.instances.len() as u32,
+                    );
                 }
             }
         }

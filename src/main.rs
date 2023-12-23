@@ -11,7 +11,6 @@ use bytemuck::{Pod, Zeroable};
 use camera::CameraController;
 use glam::vec2;
 use material::Texture;
-use model::Vertex;
 use state::State;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
@@ -42,9 +41,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let mut state = State::new(&window).await;
     let window = &window;
 
-    window
-        .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-        .unwrap();
+    // window
+    //     .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+    //     .unwrap();
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;

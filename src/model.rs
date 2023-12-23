@@ -1,21 +1,18 @@
-use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec3};
-
 use crate::{
     material::{Material, Texture},
     state::State,
 };
+use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Quat, Vec3};
+use wgpu::util::DeviceExt;
 
-pub trait Vertex {
+pub trait PerVertex<T: Sized> {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
+    fn size() -> usize {
+        std::mem::size_of::<T>()
+    }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexData {
-    pub _position: [f32; 3],
-    pub _tex_coords: [f32; 2],
-}
 impl VertexData {
     pub fn new(_position: [f32; 3], _tex_coords: [f32; 2]) -> Self {
         Self {
@@ -23,14 +20,15 @@ impl VertexData {
             _tex_coords,
         }
     }
-
     pub fn size() -> usize {
         std::mem::size_of::<Self>()
     }
+}
+impl PerVertex<Self> for VertexData {
     // This probably should be a macro so it would be less error prone
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: VertexData::size() as wgpu::BufferAddress,
+            array_stride: Self::size() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -48,35 +46,20 @@ impl VertexData {
     }
 }
 
+impl PerVertex<Self> for InstanceData {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: Self::size() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 2,
+            }],
+        }
+    }
+}
 pub type ModelMatrix = [[f32; 4]; 4];
-
-pub struct Mesh {
-    pub translation: Vec3,
-    pub scale: Vec3,
-    pub rotation: Quat,
-    pub instances: u32,
-    pub name: String,
-    pub material_id: u32,
-
-    pub _indices: Vec<u32>,
-    pub _world_matrix: ModelMatrix,
-    pub _vertex_data: Vec<VertexData>,
-
-    pub vertex_buffer: Option<wgpu::Buffer>,
-    pub index_buffer: Option<wgpu::Buffer>,
-    pub world_mat_buffer: Option<wgpu::Buffer>,
-}
-
-pub struct Model {
-    pub name: String,
-    pub instances: u32,
-    // pub translation: Vec3,
-    // pub scale: Vec3,
-    // pub rotation: Quat,
-    pub materials: Vec<Material>,
-    pub meshes: Vec<Mesh>,
-    // pub _world_matrix: ModelMatrix,
-}
 
 impl Mesh {}
 impl Default for Mesh {
@@ -98,7 +81,6 @@ impl Default for Mesh {
             index_buffer: None,
             vertex_buffer: None,
             world_mat_buffer: None,
-            instances: 1,
         }
     }
 }
@@ -182,8 +164,6 @@ impl Model {
                 ..Default::default()
             };
 
-            use wgpu::util::DeviceExt;
-
             meshes.push(mesh);
         }
 
@@ -199,12 +179,64 @@ impl Model {
                 )?,
             });
         }
+        // Instances
+        let instances = vec![InstanceData {
+            _translate: glam::vec3(0.0, 0.0, 0.0).into(),
+        }];
+        let instances_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("instance_buffer-{name}")),
+                contents: bytemuck::cast_slice(&instances),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
 
         Ok(Self {
             materials,
             meshes,
-            instances: 1,
+            instances_buffer,
+            instances,
             name,
         })
     }
+}
+
+pub struct Model {
+    pub name: String,
+    pub instances: Vec<InstanceData>,
+    pub instances_buffer: wgpu::Buffer,
+    // pub translation: Vec3,
+    // pub scale: Vec3,
+    // pub rotation: Quat,
+    pub materials: Vec<Material>,
+    pub meshes: Vec<Mesh>,
+    // pub _world_matrix: ModelMatrix,
+}
+
+pub struct Mesh {
+    pub translation: Vec3,
+    pub scale: Vec3,
+    pub rotation: Quat,
+    pub name: String,
+    pub material_id: u32,
+
+    pub _indices: Vec<u32>,
+    pub _world_matrix: ModelMatrix,
+    pub _vertex_data: Vec<VertexData>,
+
+    pub vertex_buffer: Option<wgpu::Buffer>,
+    pub index_buffer: Option<wgpu::Buffer>,
+    pub world_mat_buffer: Option<wgpu::Buffer>,
+}
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct InstanceData {
+    pub _translate: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexData {
+    pub _position: [f32; 3],
+    pub _tex_coords: [f32; 2],
 }

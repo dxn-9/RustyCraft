@@ -3,8 +3,13 @@
 struct VertexInput {
     @builtin(vertex_index) vertex_index: u32,
     @location(0) position: vec3<f32>,
-    @location(1) tex_coords: vec2<f32>
+    @location(1) tex_coords: vec2<f32>,
+    
 }
+struct InstanceInput {
+    @location(2) instance_transform: vec3<f32>,
+};
+ 
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -22,10 +27,10 @@ var<uniform> view: mat4x4<f32>;
 
 
 @vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
+fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
     out.tex_coords = in.tex_coords;
-    out.clip_position = projection * view * transform * vec4<f32>(in.position.xyz, 1.0);
+    out.clip_position = projection * view * transform * vec4<f32>(in.position.xyz + instance_data.instance_transform, 1.0);
 
     return out;
 }
