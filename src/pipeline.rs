@@ -1,11 +1,12 @@
 use bytemuck::{Pod, Zeroable};
+use obj::Vertex;
 use wgpu::util::DeviceExt;
 
 use crate::{
     camera::Camera,
-    model::{create_cube_mesh, Mesh, ModelVertex},
+    material::Texture,
+    model::{Mesh, Model, VertexData},
     state::State,
-    texture::Texture,
 };
 
 struct Matrices {
@@ -40,51 +41,7 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
-        let cube_mesh = create_cube_mesh();
-        let vertex_size = std::mem::size_of::<ModelVertex>();
-
-        // Vertex buffer
-        let vertex_buffer = state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("vertex_buffer"),
-                contents: bytemuck::cast_slice(&cube_mesh._vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        let vertex_buffers = [wgpu::VertexBufferLayout {
-            array_stride: vertex_size as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                },
-            ],
-        }];
-        // Index buffer
-        let index_buffer = state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("index_buffer"),
-                contents: bytemuck::cast_slice(&vec![0, 1, 2, 0, 2, 3]),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-
-        // Bind group @0
-
-        let world_buffer = state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("transform_buffer"),
-                contents: bytemuck::cast_slice(&[cube_mesh._world_matrix]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
 
         // Projection matrix
 
@@ -153,7 +110,12 @@ impl Pipeline {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: world_buffer.as_entire_binding(),
+                    // bind the first, if it changes per mesh we will update the bind group later
+                    resource: model.meshes[0]
+                        .world_mat_buffer
+                        .as_ref()
+                        .expect("Expected to have atleast 1 mesh")
+                        .as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -231,7 +193,7 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &vertex_buffers,
+                        buffers: &[VertexData::desc()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -254,27 +216,22 @@ impl Pipeline {
         Self {
             view_buffer,
             projection_buffer,
-            world_buffer,
             depth_texture,
             bind_group_0,
             bind_group_1,
-            index_buffer,
-            vertex_buffer,
             pipeline: render_pipeline,
-            mesh: cube_mesh,
+            model,
         }
     }
 }
 
 pub struct Pipeline {
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub world_buffer: wgpu::Buffer,
     pub projection_buffer: wgpu::Buffer,
     pub view_buffer: wgpu::Buffer,
     pub pipeline: wgpu::RenderPipeline,
     pub bind_group_0: wgpu::BindGroup,
     pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
-    pub mesh: Mesh,
+    // TODO: Multiple models
+    pub model: Model,
 }

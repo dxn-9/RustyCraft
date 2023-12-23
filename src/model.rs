@@ -1,21 +1,49 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
+use crate::{
+    material::{Material, Texture},
+    state::State,
+};
+
 pub trait Vertex {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct ModelVertex {
-    pub _position: [f32; 4],
+pub struct VertexData {
+    pub _position: [f32; 3],
     pub _tex_coords: [f32; 2],
 }
-impl ModelVertex {
+impl VertexData {
     pub fn new(_position: [f32; 3], _tex_coords: [f32; 2]) -> Self {
         Self {
-            _position: [_position[0], _position[1], _position[2], 1.0],
+            _position,
             _tex_coords,
+        }
+    }
+
+    pub fn size() -> usize {
+        std::mem::size_of::<Self>()
+    }
+    // This probably should be a macro so it would be less error prone
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: VertexData::size() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                },
+            ],
         }
     }
 }
@@ -23,96 +51,160 @@ impl ModelVertex {
 pub type ModelMatrix = [[f32; 4]; 4];
 
 pub struct Mesh {
-    pub name: String,
-    pub elements_count: u32,
-    pub instances: u32,
-
     pub translation: Vec3,
     pub scale: Vec3,
     pub rotation: Quat,
-    pub _world_matrix: ModelMatrix,
-    pub _vertices: Vec<ModelVertex>,
+    pub instances: u32,
+    pub name: String,
+    pub material_id: u32,
+
     pub _indices: Vec<u32>,
+    pub _world_matrix: ModelMatrix,
+    pub _vertex_data: Vec<VertexData>,
+
+    pub vertex_buffer: Option<wgpu::Buffer>,
+    pub index_buffer: Option<wgpu::Buffer>,
+    pub world_mat_buffer: Option<wgpu::Buffer>,
 }
 
-fn vertex(pos: [f32; 3], vc: [f32; 2]) -> ModelVertex {
-    ModelVertex::new(pos, vc)
+pub struct Model {
+    pub name: String,
+    pub instances: u32,
+    // pub translation: Vec3,
+    // pub scale: Vec3,
+    // pub rotation: Quat,
+    pub materials: Vec<Material>,
+    pub meshes: Vec<Mesh>,
+    // pub _world_matrix: ModelMatrix,
 }
 
-const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
-const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-
-pub fn create_plane_mesh() -> Mesh {
-    let _vertices = [
-        vertex([1.0, -1.0, 1.0], [0.0, 0.0]),
-        vertex([1.0, -1.0, 1.0], [1.0, 0.0]),
-        vertex([1.0, 1.0, 1.0], [1.0, 1.0]),
-        vertex([-1.0, 1.0, 1.0], [0.0, 1.0]),
-    ];
-    todo!()
+impl Mesh {}
+impl Default for Mesh {
+    fn default() -> Self {
+        let translation = Vec3::new(0.0, 0.0, 0.0);
+        let scale = Vec3::new(1.0, 1.0, 1.0);
+        let rotation = Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0);
+        let _world_matrix =
+            Mat4::from_scale_rotation_translation(scale, rotation, translation).to_cols_array_2d();
+        Self {
+            _indices: vec![],
+            _vertex_data: vec![],
+            _world_matrix,
+            name: "default_mesh".to_string(),
+            rotation,
+            scale,
+            translation,
+            material_id: 0,
+            index_buffer: None,
+            vertex_buffer: None,
+            world_mat_buffer: None,
+            instances: 1,
+        }
+    }
 }
 
-pub fn create_cube_mesh() -> Mesh {
-    #[rustfmt::skip]
-    let _vertices = vec![
-        // Front
-        // vertex([-1.0, -1.0, 1.0],RED ),
-        // vertex([1.0, -1.0, 1.0],RED  ),
-        // vertex([1.0, 1.0, 1.0], RED ),
-        // vertex([-1.0, 1.0, 1.0], RED ),
-        // // bottom (0, 0, -1.0)
-        // vertex([-1.0, 1.0, -1.0], BLUE ),
-        // vertex([1.0, 1.0, -1.0], BLUE ),
-        // vertex([1.0, -1.0, -1.0], BLUE ),
-        // vertex([-1.0, -1.0, -1.0],BLUE  ),
-        // // right (1.0, 0, 0)
-        // vertex([1.0, -1.0, -1.0],RED  ),
-        // vertex([1.0, 1.0, -1.0],RED  ),
-        // vertex([1.0, 1.0, 1.0], RED ),
-        // vertex([1.0, -1.0, 1.0],RED  ),
-        // // left (-1.0, 0, 0)
-        // vertex([-1.0, -1.0, 1.0], BLUE),
-        // vertex([-1.0, 1.0, 1.0], BLUE),
-        // vertex([-1.0, 1.0, -1.0], BLUE),
-        // vertex([-1.0, -1.0, -1.0],BLUE ),
-        // // front (0, 1.0, 0)
-        // vertex([1.0, 1.0, -1.0],RED  ),
-        // vertex([-1.0, 1.0, -1.0],RED  ),
-        // vertex([-1.0, 1.0, 1.0],RED  ),
-        // vertex([1.0, 1.0, 1.0], RED ),
-        // // back (0, -1.0, 0)
-        // vertex([1.0, -1.0, 1.0],BLUE),
-        // vertex([-1.0, -1.0, 1.0], BLUE),
-        // vertex([-1.0, -1.0, -1.0],BLUE),
-        // vertex([1.0, -1.0, -1.0],BLUE),
+impl Model {
+    // TODO: Refactor this into multiple meshes - also this supports only obj files for now
+    pub fn from_path(
+        path: &str,
+        name: String,
+        state: &State,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let obj = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)?;
+        let (obj_models, obj_materials) = obj;
 
-    ];
-    #[rustfmt::skip]
-    let _indices = vec![
-        0, 1, 2, 2, 3, 0, // top
-        4, 5, 6, 6, 7, 4, // bottom
-        8, 9, 10, 10, 11, 8, // right
-        12, 13, 14, 14, 15, 12, // left
-        16, 17, 18, 18, 19, 16, // front
-        20, 21, 22, 22, 23, 20, // back
-    ];
+        let mut meshes: Vec<Mesh> = vec![];
 
-    let translation = Vec3::new(0.0, 0.0, 0.0);
-    let scale = Vec3::new(1.0, 1.0, 1.0);
-    let rotation = Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0);
+        for model in obj_models.iter() {
+            let o_mesh = &model.mesh;
+            let mut _indices: Vec<u32> = vec![];
+            let mut positions: Vec<[f32; 3]> = vec![];
+            let mut tex_coords: Vec<[f32; 2]> = vec![];
+            for i in 0..o_mesh.positions.len() / 3 {
+                positions.push([
+                    o_mesh.positions[i * 3 + 0],
+                    o_mesh.positions[i * 3 + 1],
+                    o_mesh.positions[i * 3 + 2],
+                ]);
+            }
+            for index in o_mesh.indices.iter() {
+                _indices.push(*index)
+            }
 
-    let _world_matrix =
-        Mat4::from_scale_rotation_translation(scale, rotation, translation).to_cols_array_2d();
+            for i in 0..o_mesh.texcoords.len() / 2 {
+                tex_coords.push([o_mesh.texcoords[i * 2 + 0], o_mesh.texcoords[i * 2 + 1]])
+            }
+            let material_id = o_mesh.material_id.unwrap_or(0) as u32;
 
-    Mesh {
-        translation,
-        scale,
-        rotation,
-        name: "square_mesh".to_string(),
-        elements_count: _indices.len() as u32,
-        instances: 1,
-        _world_matrix,
-        _vertices,
-        _indices,
+            let _vertex_data: Vec<_> = (0..positions.len())
+                .map(|i| VertexData::new(positions[i], tex_coords[i]))
+                .collect();
+
+            let vertex_buffer =
+                state
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!("vertex_buffer-{name}-{}", model.name)),
+                        contents: bytemuck::cast_slice(&_vertex_data),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+            let index_buffer = state
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("index_buffer-{name}-{}", model.name)),
+                    contents: bytemuck::cast_slice(&_indices),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+
+            let translation = Vec3::new(0.0, 0.0, 0.0);
+            let scale = Vec3::new(1.0, 1.0, 1.0);
+            let rotation = Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0);
+            let _world_matrix = Mat4::from_scale_rotation_translation(scale, rotation, translation)
+                .to_cols_array_2d();
+
+            let world_mat_buffer =
+                state
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!("world_buffer-{name}-{}", model.name)),
+                        contents: bytemuck::cast_slice(&[_world_matrix]),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    });
+
+            let mesh = Mesh {
+                _indices,
+                _vertex_data,
+                material_id,
+                name: format!("{name}-{}", model.name),
+                index_buffer: Some(index_buffer),
+                vertex_buffer: Some(vertex_buffer),
+                world_mat_buffer: Some(world_mat_buffer),
+                ..Default::default()
+            };
+
+            use wgpu::util::DeviceExt;
+
+            meshes.push(mesh);
+        }
+
+        let mut materials: Vec<Material> = vec![];
+
+        let obj_mats = obj_materials?;
+        for mat in obj_mats.iter() {
+            materials.push(Material {
+                diffuse: Texture::from_path(
+                    &format!("assets/{}", mat.diffuse_texture),
+                    "diffuse".to_string(),
+                    state,
+                )?,
+            });
+        }
+
+        Ok(Self {
+            materials,
+            meshes,
+            instances: 1,
+            name,
+        })
     }
 }

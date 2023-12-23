@@ -10,9 +10,9 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use camera::CameraController;
 use glam::vec2;
+use material::Texture;
 use model::Vertex;
 use state::State;
-use texture::Texture;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
     dpi::PhysicalPosition,
@@ -23,15 +23,12 @@ use winit::{
 };
 
 mod camera;
+mod material;
 mod model;
 mod pipeline;
 mod state;
-mod texture;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-    let input = BufReader::new(File::open("assets/cube.obj").unwrap());
-    let model = load_obj("assets/cube.obj", &LoadOptions::default()).unwrap();
-
     // let model: Obj = load_obj(input).unwrap();
 
     let start = Instant::now();

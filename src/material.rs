@@ -10,6 +10,10 @@ pub struct Texture {
     pub name: String,
 }
 
+pub struct Material {
+    pub diffuse: Texture,
+}
+
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
     pub fn create_depth_texture(state: &State) -> Self {

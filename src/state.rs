@@ -2,8 +2,8 @@ use std::f32::consts;
 
 use crate::{
     camera::{Camera, CameraController},
+    material::Texture,
     pipeline::{Pipeline, Uniforms},
-    texture::Texture,
 };
 use glam::{vec2, Quat, Vec3};
 use winit::{
@@ -130,15 +130,18 @@ impl State {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        self.pipelines[0].mesh.rotation = self.pipelines[0].mesh.rotation * rotation_increment;
-        // self.pipeline.mesh.recalculate_world_matrix();
+        for (i, mesh) in self.pipelines[0].model.meshes.iter().enumerate() {
+            // mesh.rotation * rotation_increment;
+            self.queue.write_buffer(
+                &self.pipelines[0].model.meshes[0]
+                    .world_mat_buffer
+                    .as_ref()
+                    .unwrap(),
+                0,
+                bytemuck::cast_slice(&[mesh._world_matrix]),
+            );
+        }
 
-        // self.pipeline.mesh.rotation = angle;
-        self.queue.write_buffer(
-            &self.pipelines[0].world_buffer,
-            0,
-            bytemuck::cast_slice(&[self.pipelines[0].mesh._world_matrix]),
-        );
         if self.camera_controller.movement_vector != Vec3::ZERO {
             self.camera
                 .move_camera(&self.camera_controller.movement_vector, delta_time)
@@ -197,16 +200,28 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            rpass.set_pipeline(&self.pipelines[0].pipeline);
-            rpass.set_vertex_buffer(0, self.pipelines[0].vertex_buffer.slice(..));
-            rpass.set_bind_group(0, &self.pipelines[0].bind_group_0, &[]);
-            rpass.set_bind_group(1, &self.pipelines[0].bind_group_1, &[]);
-            rpass.set_index_buffer(
-                self.pipelines[0].index_buffer.slice(..),
-                wgpu::IndexFormat::Uint32,
-            );
-            rpass.draw_indexed(0..6, 0, 0..self.pipelines[0].mesh.instances);
-            // rpass.draw(0..3, 0..1);
+            for pipeline in self.pipelines.iter() {
+                rpass.set_pipeline(&pipeline.pipeline);
+                for mesh in pipeline.model.meshes.iter() {
+                    rpass.set_vertex_buffer(
+                        0,
+                        mesh.vertex_buffer
+                            .as_ref()
+                            .expect("vertex_buffer not set")
+                            .slice(..),
+                    );
+                    rpass.set_index_buffer(
+                        mesh.index_buffer
+                            .as_ref()
+                            .expect("index_buffer not set")
+                            .slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
+                    rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
+                    rpass.draw_indexed(0..mesh._indices.len() as u32, 0, 0..mesh.instances);
+                }
+            }
         }
         self.queue.submit(Some(encoder.finish()));
         frame.present();
