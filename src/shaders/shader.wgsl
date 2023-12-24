@@ -30,7 +30,8 @@ var<uniform> view: mat4x4<f32>;
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
     out.tex_coords = in.tex_coords;
-    out.clip_position = projection * view * transform * vec4<f32>(in.position.xyz + instance_data.instance_transform, 1.0);
+    let instance_transform = vec4<f32>(instance_data.instance_transform, 1.0);
+    out.clip_position = projection * view * transform * (vec4<f32>(in.position.xyz, 1.0) + instance_transform);
 
     return out;
 }

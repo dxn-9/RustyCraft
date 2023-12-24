@@ -43,10 +43,15 @@ impl Pipeline {
             });
         let mut model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
         // INSTANCES TEST
-        model.instances = (0..10)
-            .map(|i| InstanceData {
-                _translate: glam::vec3((i * 2) as f32, 0.0, 0.0).into(),
+        model.instances = (-8..8)
+            .map(|i| {
+                (-8..8)
+                    .map(|j| InstanceData {
+                        _translate: glam::vec3((i * 2) as f32, 0.0, (j * 2) as f32).into(),
+                    })
+                    .collect::<Vec<_>>()
             })
+            .flatten()
             .collect();
 
         model.instances_buffer =

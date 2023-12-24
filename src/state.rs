@@ -143,27 +143,6 @@ impl State {
             );
         }
         // this is bad, it should in a uniform, but im just testing
-        {
-            self.pipelines[0].model.instances = self.pipelines[0]
-                .model
-                .instances
-                .iter()
-                .enumerate()
-                .map(|(i, _)| InstanceData {
-                    _translate: glam::vec3((i * 2) as f32, f32::sin(i as f32 + total_time), 0.0)
-                        .into(),
-                })
-                .collect();
-            use wgpu::util::DeviceExt;
-
-            self.pipelines[0].model.instances_buffer =
-                self.device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("instance_buffer-cube")),
-                        contents: bytemuck::cast_slice(&self.pipelines[0].model.instances),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
-        }
 
         if self.camera_controller.movement_vector != Vec3::ZERO {
             self.camera
