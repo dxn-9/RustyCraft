@@ -1,10 +1,11 @@
-use std::f32::consts;
+use std::{f32::consts, rc::Rc};
 
 use crate::{
     camera::{Camera, CameraController},
     material::Texture,
     model::InstanceData,
-    pipeline::{Pipeline, Uniforms},
+    pipeline::{self, Pipeline, Uniforms},
+    world::World,
 };
 use glam::{vec2, Quat, Vec3};
 use winit::{
@@ -73,6 +74,7 @@ impl State {
             config,
             instance,
             device,
+            world: None,
             queue,
             surface,
             adapter,
@@ -80,6 +82,7 @@ impl State {
         };
 
         let pipeline = Pipeline::new(&state);
+        state.world = Some(World::init_world(pipeline.model.clone()));
         state.pipelines.push(pipeline);
 
         state
@@ -131,10 +134,17 @@ impl State {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        for (i, mesh) in self.pipelines[0].model.meshes.iter().enumerate() {
+        for (i, mesh) in self.pipelines[0]
+            .model
+            .as_ref()
+            .borrow()
+            .meshes
+            .iter()
+            .enumerate()
+        {
             // mesh.rotation * rotation_increment;
             self.queue.write_buffer(
-                &self.pipelines[0].model.meshes[0]
+                &self.pipelines[0].model.as_ref().borrow().meshes[0]
                     .world_mat_buffer
                     .as_ref()
                     .unwrap(),
@@ -174,6 +184,17 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("command_encoder"),
             });
+
+        let mut instances_buffers: Vec<wgpu::BufferSlice<'_>> = vec![];
+        let model_borrows: Vec<_> = self
+            .pipelines
+            .iter()
+            .map(|pipeline| pipeline.model.borrow())
+            .collect();
+
+        for model in model_borrows.iter() {
+            instances_buffers.push(model.instances_buffer.slice(..));
+        }
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -202,11 +223,12 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            for pipeline in self.pipelines.iter() {
+            for (i, pipeline) in self.pipelines.iter().enumerate() {
+                // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
-                rpass.set_vertex_buffer(1, pipeline.model.instances_buffer.slice(..));
+                rpass.set_vertex_buffer(1, instances_buffers[i]);
 
-                for mesh in pipeline.model.meshes.iter() {
+                for mesh in model_borrows[i].meshes.iter() {
                     rpass.set_vertex_buffer(
                         0,
                         mesh.vertex_buffer
@@ -226,7 +248,7 @@ impl State {
                     rpass.draw_indexed(
                         0..mesh._indices.len() as u32,
                         0,
-                        0..pipeline.model.instances.len() as u32,
+                        0..pipeline.model.as_ref().borrow().instances.len() as u32,
                     );
                 }
             }
@@ -245,5 +267,6 @@ pub struct State {
     pub config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
+    pub world: Option<World>,
     pub camera_controller: CameraController,
 }

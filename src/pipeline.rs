@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use bytemuck::{Pod, Zeroable};
 use obj::Vertex;
 use wgpu::util::DeviceExt;
@@ -7,6 +9,7 @@ use crate::{
     material::{Material, Texture},
     model::{InstanceData, Mesh, Model, PerVertex, VertexData},
     state::State,
+    world::{self, World},
 };
 
 struct Matrices {
@@ -41,15 +44,15 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
-        // let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
-        let model = Model::from_mesh_and_material(
-            Mesh::plane(1.0, 1.0, state),
-            Material {
-                diffuse: Texture::create_perlin_noise_texture(1024, 1024, 0.02, state),
-            },
-            "plane".to_string(),
-            state,
-        );
+        let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
+        // let model = Model::from_mesh_and_material(
+        //     Mesh::plane(1.0, 1.0, state),
+        //     Material {
+        //         diffuse: Texture::create_perlin_noise_texture(1024, 1024, 0.02, state),
+        //     },
+        //     "plane".to_string(),
+        //     state,
+        // );
 
         let uniforms = Uniforms::from(&state.camera);
 
@@ -215,6 +218,7 @@ impl Pipeline {
                     multiview: None,
                 });
 
+        let model = Rc::new(RefCell::new(model));
         Self {
             view_buffer,
             projection_buffer,
@@ -235,5 +239,5 @@ pub struct Pipeline {
     pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
     // TODO: Multiple models
-    pub model: Model,
+    pub model: Rc<RefCell<Model>>,
 }

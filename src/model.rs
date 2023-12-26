@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     material::{Material, Texture},
     state::State,
@@ -157,7 +159,7 @@ impl Model {
         Self {
             name,
             instances,
-            instances_buffer,
+            instances_buffer: Rc::new(instances_buffer),
             materials: vec![material],
             meshes: vec![mesh],
         }
@@ -270,7 +272,7 @@ impl Model {
         Ok(Self {
             materials,
             meshes,
-            instances_buffer,
+            instances_buffer: Rc::new(instances_buffer),
             instances,
             name,
         })
@@ -280,7 +282,7 @@ impl Model {
 pub struct Model {
     pub name: String,
     pub instances: Vec<InstanceData>,
-    pub instances_buffer: wgpu::Buffer,
+    pub instances_buffer: Rc<wgpu::Buffer>,
     // pub translation: Vec3,
     // pub scale: Vec3,
     // pub rotation: Quat,
