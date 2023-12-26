@@ -22,11 +22,16 @@ use winit::{
     window::Window,
 };
 
+#[macro_use]
+extern crate lazy_static;
+
 mod camera;
 mod material;
 mod model;
 mod pipeline;
 mod state;
+mod utils;
+mod world;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
     // let model: Obj = load_obj(input).unwrap();

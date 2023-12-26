@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     camera::Camera,
-    material::Texture,
+    material::{Material, Texture},
     model::{InstanceData, Mesh, Model, PerVertex, VertexData},
     state::State,
 };
@@ -41,30 +41,15 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
-        let mut model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
-        // INSTANCES TEST
-        model.instances = (-8..8)
-            .map(|i| {
-                (-8..8)
-                    .map(|j| InstanceData {
-                        _translate: glam::vec3((i * 2) as f32, 0.0, (j * 2) as f32).into(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect();
-
-        model.instances_buffer =
-            state
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some(&format!("instance_buffer-cube")),
-                    contents: bytemuck::cast_slice(&model.instances),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-
-        println!("{:?}", model.instances);
-        // Projection matrix
+        // let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
+        let model = Model::from_mesh_and_material(
+            Mesh::plane(1.0, 1.0, state),
+            Material {
+                diffuse: Texture::create_perlin_noise_texture(1024, 1024, 0.02, state),
+            },
+            "plane".to_string(),
+            state,
+        );
 
         let uniforms = Uniforms::from(&state.camera);
 
@@ -149,10 +134,6 @@ impl Pipeline {
             ],
         });
 
-        // Texutre bind group
-        let texture =
-            Texture::from_path("assets/Sprite-0001.png", "sprite".to_string(), state).unwrap();
-
         let bind_group_1_layout =
             state
                 .device
@@ -184,11 +165,11 @@ impl Pipeline {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                    resource: wgpu::BindingResource::TextureView(&model.materials[0].diffuse.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&model.materials[0].diffuse.sampler),
                 },
             ],
         });

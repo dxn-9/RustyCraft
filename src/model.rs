@@ -61,7 +61,57 @@ impl PerVertex<Self> for InstanceData {
 }
 pub type ModelMatrix = [[f32; 4]; 4];
 
-impl Mesh {}
+impl Mesh {
+    pub fn plane(w: f32, h: f32, state: &State) -> Self {
+        let _vertex_data = vec![
+            VertexData::new([-1.0 * w, -1.0 * h, 0.0], [0.0, 0.0]),
+            VertexData::new([-1.0 * w, 1.0 * h, 0.0], [0.0, 1.0]),
+            VertexData::new([1.0 * w, 1.0 * h, 0.0], [1.0, 1.0]),
+            VertexData::new([1.0 * w, -1.0 * h, 0.0], [1.0, 0.0]),
+        ];
+        let _indices = vec![0, 1, 2, 0, 2, 3];
+
+        let vertex_buffer = Some(state.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("vertex_buffer-plane")),
+                contents: bytemuck::cast_slice(&_vertex_data),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        ));
+        let index_buffer = Some(state.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("index_buffer-plane")),
+                contents: bytemuck::cast_slice(&_indices),
+                usage: wgpu::BufferUsages::INDEX,
+            },
+        ));
+
+        let translation = Vec3::new(0.0, 0.0, 0.0);
+        let scale = Vec3::new(1.0, 1.0, 1.0);
+        let rotation = Quat::from_euler(glam::EulerRot::XYZ, 0.0, 0.0, 0.0);
+        let _world_matrix =
+            Mat4::from_scale_rotation_translation(scale, rotation, translation).to_cols_array_2d();
+
+        let world_mat_buffer = Some(state.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("world_buffer-plane")),
+                contents: bytemuck::cast_slice(&[_world_matrix]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            },
+        ));
+
+        Self {
+            world_mat_buffer,
+            index_buffer,
+            vertex_buffer,
+            _vertex_data,
+            _indices,
+            name: "plane".to_string(),
+            material_id: 0,
+            ..Default::default()
+        }
+    }
+}
 impl Default for Mesh {
     fn default() -> Self {
         let translation = Vec3::new(0.0, 0.0, 0.0);
@@ -86,7 +136,35 @@ impl Default for Mesh {
 }
 
 impl Model {
+    pub fn from_mesh_and_material(
+        mesh: Mesh,
+        material: Material,
+        name: String,
+        state: &State,
+    ) -> Self {
+        // Instances
+        let instances = vec![InstanceData {
+            _translate: glam::vec3(0.0, 0.0, 0.0).into(),
+        }];
+        let instances_buffer = state
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("instance_buffer-{name}")),
+                contents: bytemuck::cast_slice(&instances),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        Self {
+            name,
+            instances,
+            instances_buffer,
+            materials: vec![material],
+            meshes: vec![mesh],
+        }
+    }
+
     // TODO: Refactor this into multiple meshes - also this supports only obj files for now
+
     pub fn from_path(
         path: &str,
         name: String,
@@ -122,21 +200,20 @@ impl Model {
                 .map(|i| VertexData::new(positions[i], tex_coords[i]))
                 .collect();
 
-            let vertex_buffer =
-                state
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("vertex_buffer-{name}-{}", model.name)),
-                        contents: bytemuck::cast_slice(&_vertex_data),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
-            let index_buffer = state
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            let vertex_buffer = Some(state.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("vertex_buffer-{name}-{}", model.name)),
+                    contents: bytemuck::cast_slice(&_vertex_data),
+                    usage: wgpu::BufferUsages::VERTEX,
+                },
+            ));
+            let index_buffer = Some(state.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
                     label: Some(&format!("index_buffer-{name}-{}", model.name)),
                     contents: bytemuck::cast_slice(&_indices),
                     usage: wgpu::BufferUsages::INDEX,
-                });
+                },
+            ));
 
             let translation = Vec3::new(0.0, 0.0, 0.0);
             let scale = Vec3::new(1.0, 1.0, 1.0);
@@ -144,23 +221,22 @@ impl Model {
             let _world_matrix = Mat4::from_scale_rotation_translation(scale, rotation, translation)
                 .to_cols_array_2d();
 
-            let world_mat_buffer =
-                state
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("world_buffer-{name}-{}", model.name)),
-                        contents: bytemuck::cast_slice(&[_world_matrix]),
-                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    });
+            let world_mat_buffer = Some(state.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("world_buffer-{name}-{}", model.name)),
+                    contents: bytemuck::cast_slice(&[_world_matrix]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
 
             let mesh = Mesh {
                 _indices,
                 _vertex_data,
                 material_id,
                 name: format!("{name}-{}", model.name),
-                index_buffer: Some(index_buffer),
-                vertex_buffer: Some(vertex_buffer),
-                world_mat_buffer: Some(world_mat_buffer),
+                index_buffer,
+                vertex_buffer,
+                world_mat_buffer,
                 ..Default::default()
             };
 
