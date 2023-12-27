@@ -82,7 +82,7 @@ impl State {
         };
 
         let pipeline = Pipeline::new(&state);
-        state.world = Some(World::init_world(pipeline.model.clone()));
+        state.world = Some(World::init_world(pipeline.model.clone(), &state));
         state.pipelines.push(pipeline);
 
         state
@@ -248,7 +248,7 @@ impl State {
                     rpass.draw_indexed(
                         0..mesh._indices.len() as u32,
                         0,
-                        0..pipeline.model.as_ref().borrow().instances.len() as u32,
+                        0..model_borrows[i].instances.len() as u32,
                     );
                 }
             }

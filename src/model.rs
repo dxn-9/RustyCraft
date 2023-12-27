@@ -159,7 +159,7 @@ impl Model {
         Self {
             name,
             instances,
-            instances_buffer: Rc::new(instances_buffer),
+            instances_buffer,
             materials: vec![material],
             meshes: vec![mesh],
         }
@@ -272,17 +272,18 @@ impl Model {
         Ok(Self {
             materials,
             meshes,
-            instances_buffer: Rc::new(instances_buffer),
+            instances_buffer,
             instances,
             name,
         })
     }
 }
 
+#[derive(Debug)]
 pub struct Model {
     pub name: String,
     pub instances: Vec<InstanceData>,
-    pub instances_buffer: Rc<wgpu::Buffer>,
+    pub instances_buffer: wgpu::Buffer,
     // pub translation: Vec3,
     // pub scale: Vec3,
     // pub rotation: Quat,
@@ -291,6 +292,7 @@ pub struct Model {
     // pub _world_matrix: ModelMatrix,
 }
 
+#[derive(Debug)]
 pub struct Mesh {
     pub translation: Vec3,
     pub scale: Vec3,

@@ -2,7 +2,7 @@ use image::{error::DecodingError, GenericImageView, ImageError};
 
 use crate::{
     state::State,
-    utils::perlin_noise::{create_perlin_noise_data, perlin_noise},
+    utils::noise::{create_perlin_noise_data, perlin_noise},
 };
 
 impl Texture {
@@ -178,6 +178,7 @@ pub struct Texture {
     pub data: Option<Vec<u8>>,
 }
 
+#[derive(Debug)]
 pub struct Material {
     pub diffuse: Texture,
 }

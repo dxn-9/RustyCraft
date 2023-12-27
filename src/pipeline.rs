@@ -48,7 +48,7 @@ impl Pipeline {
         // let model = Model::from_mesh_and_material(
         //     Mesh::plane(1.0, 1.0, state),
         //     Material {
-        //         diffuse: Texture::create_perlin_noise_texture(1024, 1024, 0.02, state),
+        //         diffuse: Texture::create_perlin_noise_texture(128, 128, 1. / 16., state),
         //     },
         //     "plane".to_string(),
         //     state,

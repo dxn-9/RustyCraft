@@ -4,7 +4,7 @@ fn fade(t: f32) -> f32 {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + ((b - a) * t)
 }
-pub(crate) mod perlin_noise {
+pub(crate) mod noise {
     use std::fmt::Debug;
 
     use super::*;
@@ -38,7 +38,6 @@ pub(crate) mod perlin_noise {
             vec[i] = vec[a];
             vec[a] = temp;
         }
-        println!("SHUFFLED {vec:?}");
         vec
     }
 
@@ -55,43 +54,58 @@ pub(crate) mod perlin_noise {
     }
 
     // https://rtouti.github.io/graphics/perlin-noise-algorithm
-    pub fn perlin_noise(x: f32, y: f32) -> f32 {
-        let qX = f32::floor(x) as u32 & (WRAP - 1);
-        let qY = f32::floor(y) as u32 & (WRAP - 1);
+    // https://gamedev.stackexchange.com/questions/23625/how-do-you-generate-tileable-perlin-noise
+    pub fn perlin_noise(x: f32, y: f32, per: u32) -> f32 {
+        let int_x = f32::floor(x) as u32;
+        let int_y = f32::floor(y) as u32;
 
-        let dx = x - f32::floor(x);
-        let dy = y - f32::floor(y);
-
-        let top_left_vec = glam::vec2(dx, dy - 1.0);
-        let top_right_vec = glam::vec2(dx - 1.0, dy - 1.0);
-        let bottom_left_vec = glam::vec2(dx, dy);
-        let bottom_right_vec = glam::vec2(dx - 1.0, dy);
-
-        let top_left_const = PERM_TABLE[(PERM_TABLE[qX as usize] + qY + 1) as usize];
-        let top_right_const = PERM_TABLE[(PERM_TABLE[(qX + 1) as usize] + qY + 1) as usize];
-        let bottom_left_const = PERM_TABLE[(PERM_TABLE[(qX) as usize] + qY) as usize];
-        let bottom_right_const = PERM_TABLE[(PERM_TABLE[(qX + 1) as usize] + qY) as usize];
-
-        let top_left_dot = top_left_vec.dot(get_corner_consts(top_left_const));
-        let top_right_dot = top_right_vec.dot(get_corner_consts(top_right_const));
-        let bottom_left_dot = bottom_left_vec.dot(get_corner_consts(bottom_left_const));
-        let bottom_right_dot = bottom_right_vec.dot(get_corner_consts(bottom_right_const));
-
-        let u = fade(dx);
-        let v = fade(dy);
-
-        lerp(
-            lerp(bottom_left_dot, top_left_dot, v),
-            lerp(bottom_right_dot, top_right_dot, v),
-            u,
-        )
+        let surflet = |grid_x: u32, grid_y: u32| {
+            let dist_x = f32::abs(x - grid_x as f32) % WRAP as f32;
+            let dist_y = f32::abs(y - grid_y as f32) % WRAP as f32;
+            let poly_x = 1.0 - 6.0 * f32::powi(dist_x, 5) + 15.0 * f32::powi(dist_x, 4)
+                - 10.0 * f32::powi(dist_x, 3);
+            let poly_y = 1.0 - 6.0 * f32::powi(dist_y, 5) + 15.0 * f32::powi(dist_y, 4)
+                - 10.0 * f32::powi(dist_y, 3);
+            let hashed =
+                PERM_TABLE[(PERM_TABLE[(grid_x % per) as usize] + (grid_y % per)) as usize];
+            let grad = (x - grid_x as f32) * get_corner_consts(hashed).x
+                + (y - grid_y as f32) * get_corner_consts(hashed).y;
+            poly_x * poly_y * grad
+        };
+        return f32::clamp(
+            surflet(int_x, int_y)
+                + surflet(int_x + 1, int_y + 0)
+                + surflet(int_x + 0, int_y + 1)
+                + surflet(int_x + 1, int_y + 1),
+            -1.0,
+            1.0,
+        );
     }
+    pub fn fbm(x: f32, y: f32, per: u32, octs: u32) -> f32 {
+        let mut val: f32 = 0.0;
+
+        for o in 0..octs {
+            val += f32::powi(0.5, o as i32)
+                * perlin_noise(
+                    x * f32::powi(2.0, o as i32),
+                    y * f32::powi(2.0, o as i32),
+                    (per as f32 * f32::powi(2.0, o as i32)) as u32,
+                );
+        }
+        val
+    }
+    // pub fn surflet(gridX: u32, gridY: u32) {}
+    // pub fn noise(x: f32, y: f32, per: f32) {}
     pub fn create_perlin_noise_data(width: u32, height: u32, frequency: f32) -> Vec<f32> {
         let mut data: Vec<f32> = Vec::with_capacity((width * height) as usize);
 
         for y in 0..height {
             for x in 0..width {
-                data.push(perlin_noise((x as f32) * frequency, (y as f32) * frequency));
+                data.push(perlin_noise(
+                    (x as f32) * frequency,
+                    (y as f32) * frequency,
+                    (width as f32 * frequency) as u32,
+                ));
             }
         }
         data
