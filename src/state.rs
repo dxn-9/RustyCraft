@@ -1,9 +1,9 @@
-use std::{f32::consts, rc::Rc};
+use std::{cell::RefCell, f32::consts, rc::Rc};
 
 use crate::{
     camera::{Camera, CameraController},
     material::Texture,
-    model::InstanceData,
+    model::{InstanceData, Model},
     pipeline::{self, Pipeline, Uniforms},
     world::World,
 };
@@ -68,13 +68,18 @@ impl State {
         };
 
         surface.configure(&device, &config);
+        let model =
+            Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
+        let model = Rc::new(RefCell::new(model));
+        let world = World::init_world(model.clone(), &device);
         let mut state = Self {
+            model,
             camera,
             pipelines: vec![],
             config,
             instance,
             device,
-            world: None,
+            world,
             queue,
             surface,
             adapter,
@@ -82,7 +87,7 @@ impl State {
         };
 
         let pipeline = Pipeline::new(&state);
-        state.world = Some(World::init_world(pipeline.model.clone(), &state));
+
         state.pipelines.push(pipeline);
 
         state
@@ -134,17 +139,10 @@ impl State {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        for (i, mesh) in self.pipelines[0]
-            .model
-            .as_ref()
-            .borrow()
-            .meshes
-            .iter()
-            .enumerate()
-        {
+        for (i, mesh) in self.model.as_ref().borrow().meshes.iter().enumerate() {
             // mesh.rotation * rotation_increment;
             self.queue.write_buffer(
-                &self.pipelines[0].model.as_ref().borrow().meshes[0]
+                self.model.as_ref().borrow().meshes[0]
                     .world_mat_buffer
                     .as_ref()
                     .unwrap(),
@@ -189,7 +187,7 @@ impl State {
         let model_borrows: Vec<_> = self
             .pipelines
             .iter()
-            .map(|pipeline| pipeline.model.borrow())
+            .map(|pipeline| self.model.borrow())
             .collect();
 
         for model in model_borrows.iter() {
@@ -226,7 +224,7 @@ impl State {
             for (i, pipeline) in self.pipelines.iter().enumerate() {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
-                rpass.set_vertex_buffer(1, instances_buffers[i]);
+                // rpass.set_vertex_buffer(1, instances_buffers[i]);
 
                 for mesh in model_borrows[i].meshes.iter() {
                     rpass.set_vertex_buffer(
@@ -243,13 +241,19 @@ impl State {
                             .slice(..),
                         wgpu::IndexFormat::Uint32,
                     );
+
                     rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
                     rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
-                    rpass.draw_indexed(
-                        0..mesh._indices.len() as u32,
-                        0,
-                        0..model_borrows[i].instances.len() as u32,
-                    );
+                    for chunk in self.world.chunks.iter() {
+                        self.world.update_current_chunk_buffer(chunk, &self);
+
+                        rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
+                        rpass.draw_indexed(
+                            0..mesh._indices.len() as u32,
+                            0,
+                            0..chunk.cubes.len() as u32,
+                        );
+                    }
                 }
             }
         }
@@ -267,6 +271,7 @@ pub struct State {
     pub config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
-    pub world: Option<World>,
+    pub world: World,
     pub camera_controller: CameraController,
+    pub model: Rc<RefCell<Model>>,
 }

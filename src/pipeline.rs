@@ -9,7 +9,7 @@ use crate::{
     material::{Material, Texture},
     model::{InstanceData, Mesh, Model, PerVertex, VertexData},
     state::State,
-    world::{self, World},
+    world::{self, Chunk, World},
 };
 
 struct Matrices {
@@ -44,15 +44,6 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
-        let model = Model::from_path("assets/cube.obj", "cube".to_string(), state).unwrap();
-        // let model = Model::from_mesh_and_material(
-        //     Mesh::plane(1.0, 1.0, state),
-        //     Material {
-        //         diffuse: Texture::create_perlin_noise_texture(128, 128, 1. / 16., state),
-        //     },
-        //     "plane".to_string(),
-        //     state,
-        // );
 
         let uniforms = Uniforms::from(&state.camera);
 
@@ -111,6 +102,16 @@ impl Pipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::VERTEX,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None, // TODO: look into this
+                            },
+                            count: None,
+                        },
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -120,7 +121,7 @@ impl Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     // bind the first, if it changes per mesh we will update the bind group later
-                    resource: model.meshes[0]
+                    resource: state.model.borrow().meshes[0]
                         .world_mat_buffer
                         .as_ref()
                         .expect("Expected to have atleast 1 mesh")
@@ -133,6 +134,10 @@ impl Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: view_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: state.world.chunks_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -168,11 +173,15 @@ impl Pipeline {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&model.materials[0].diffuse.view),
+                    resource: wgpu::BindingResource::TextureView(
+                        &state.model.borrow().materials[0].diffuse.view,
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&model.materials[0].diffuse.sampler),
+                    resource: wgpu::BindingResource::Sampler(
+                        &state.model.borrow().materials[0].diffuse.sampler,
+                    ),
                 },
             ],
         });
@@ -185,7 +194,11 @@ impl Pipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[&bind_group_0_layout, &bind_group_1_layout],
+                    bind_group_layouts: &[
+                        &bind_group_0_layout,
+                        &bind_group_1_layout,
+                        &state.world.current_chunk_bind_group_layout,
+                    ],
                     push_constant_ranges: &[],
                 });
 
@@ -198,7 +211,7 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[VertexData::desc(), InstanceData::desc()],
+                        buffers: &[VertexData::desc()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -218,7 +231,6 @@ impl Pipeline {
                     multiview: None,
                 });
 
-        let model = Rc::new(RefCell::new(model));
         Self {
             view_buffer,
             projection_buffer,
@@ -226,7 +238,6 @@ impl Pipeline {
             bind_group_0,
             bind_group_1,
             pipeline: render_pipeline,
-            model,
         }
     }
 }
@@ -239,5 +250,4 @@ pub struct Pipeline {
     pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
     // TODO: Multiple models
-    pub model: Rc<RefCell<Model>>,
 }

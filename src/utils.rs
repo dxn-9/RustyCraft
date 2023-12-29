@@ -25,7 +25,7 @@ pub(crate) mod noise {
     pub fn shuffle<T: Copy + Debug>(vec: &mut Vec<T>) -> &mut Vec<T> {
         use rand::prelude::*;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = StdRng::seed_from_u64(0);
 
         for i in (0..vec.len()).rev() {
             let a: usize = if i > 0 {

@@ -64,7 +64,7 @@ impl PerVertex<Self> for InstanceData {
 pub type ModelMatrix = [[f32; 4]; 4];
 
 impl Mesh {
-    pub fn plane(w: f32, h: f32, state: &State) -> Self {
+    pub fn plane(w: f32, h: f32, device: &wgpu::Device) -> Self {
         let _vertex_data = vec![
             VertexData::new([-1.0 * w, -1.0 * h, 0.0], [0.0, 0.0]),
             VertexData::new([-1.0 * w, 1.0 * h, 0.0], [0.0, 1.0]),
@@ -73,20 +73,20 @@ impl Mesh {
         ];
         let _indices = vec![0, 1, 2, 0, 2, 3];
 
-        let vertex_buffer = Some(state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let vertex_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("vertex_buffer-plane")),
                 contents: bytemuck::cast_slice(&_vertex_data),
                 usage: wgpu::BufferUsages::VERTEX,
-            },
-        ));
-        let index_buffer = Some(state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+            }),
+        );
+        let index_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("index_buffer-plane")),
                 contents: bytemuck::cast_slice(&_indices),
                 usage: wgpu::BufferUsages::INDEX,
-            },
-        ));
+            }),
+        );
 
         let translation = Vec3::new(0.0, 0.0, 0.0);
         let scale = Vec3::new(1.0, 1.0, 1.0);
@@ -94,13 +94,13 @@ impl Mesh {
         let _world_matrix =
             Mat4::from_scale_rotation_translation(scale, rotation, translation).to_cols_array_2d();
 
-        let world_mat_buffer = Some(state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let world_mat_buffer = Some(
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("world_buffer-plane")),
                 contents: bytemuck::cast_slice(&[_world_matrix]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            },
-        ));
+            }),
+        );
 
         Self {
             world_mat_buffer,
@@ -142,23 +142,21 @@ impl Model {
         mesh: Mesh,
         material: Material,
         name: String,
-        state: &State,
+        device: &wgpu::Device,
     ) -> Self {
         // Instances
         let instances = vec![InstanceData {
             _translate: glam::vec3(0.0, 0.0, 0.0).into(),
         }];
-        let instances_buffer = state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("instance_buffer-{name}")),
-                contents: bytemuck::cast_slice(&instances),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+        let instances_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("instance_buffer-{name}")),
+            contents: bytemuck::cast_slice(&instances),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         Self {
             name,
-            instances,
+            instances: 1,
             instances_buffer,
             materials: vec![material],
             meshes: vec![mesh],
@@ -170,7 +168,8 @@ impl Model {
     pub fn from_path(
         path: &str,
         name: String,
-        state: &State,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let obj = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)?;
         let (obj_models, obj_materials) = obj;
@@ -202,20 +201,20 @@ impl Model {
                 .map(|i| VertexData::new(positions[i], tex_coords[i]))
                 .collect();
 
-            let vertex_buffer = Some(state.device.create_buffer_init(
+            let vertex_buffer = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some(&format!("vertex_buffer-{name}-{}", model.name)),
                     contents: bytemuck::cast_slice(&_vertex_data),
                     usage: wgpu::BufferUsages::VERTEX,
                 },
             ));
-            let index_buffer = Some(state.device.create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
+            let index_buffer = Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some(&format!("index_buffer-{name}-{}", model.name)),
                     contents: bytemuck::cast_slice(&_indices),
                     usage: wgpu::BufferUsages::INDEX,
-                },
-            ));
+                }),
+            );
 
             let translation = Vec3::new(0.0, 0.0, 0.0);
             let scale = Vec3::new(1.0, 1.0, 1.0);
@@ -223,7 +222,7 @@ impl Model {
             let _world_matrix = Mat4::from_scale_rotation_translation(scale, rotation, translation)
                 .to_cols_array_2d();
 
-            let world_mat_buffer = Some(state.device.create_buffer_init(
+            let world_mat_buffer = Some(device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
                     label: Some(&format!("world_buffer-{name}-{}", model.name)),
                     contents: bytemuck::cast_slice(&[_world_matrix]),
@@ -253,7 +252,8 @@ impl Model {
                 diffuse: Texture::from_path(
                     &format!("assets/{}", mat.diffuse_texture),
                     "diffuse".to_string(),
-                    state,
+                    device,
+                    queue,
                 )?,
             });
         }
@@ -261,19 +261,17 @@ impl Model {
         let instances = vec![InstanceData {
             _translate: glam::vec3(0.0, 0.0, 0.0).into(),
         }];
-        let instances_buffer = state
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("instance_buffer-{name}")),
-                contents: bytemuck::cast_slice(&instances),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+        let instances_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("instance_buffer-{name}")),
+            contents: bytemuck::cast_slice(&instances),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
 
         Ok(Self {
             materials,
             meshes,
             instances_buffer,
-            instances,
+            instances: 1,
             name,
         })
     }
@@ -282,8 +280,8 @@ impl Model {
 #[derive(Debug)]
 pub struct Model {
     pub name: String,
-    pub instances: Vec<InstanceData>,
-    pub instances_buffer: wgpu::Buffer,
+    pub instances: u32,
+    pub instances_buffer: wgpu::Buffer, // TODO: Remove this in favor of chunks
     // pub translation: Vec3,
     // pub scale: Vec3,
     // pub rotation: Quat,

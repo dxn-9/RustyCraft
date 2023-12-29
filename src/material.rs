@@ -112,7 +112,8 @@ impl Texture {
     pub fn from_path(
         path: &str,
         name: String,
-        state: &State,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let f = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(f);
@@ -127,7 +128,7 @@ impl Texture {
             depth_or_array_layers: 1,
         };
 
-        let texture = state.device.create_texture(&wgpu::TextureDescriptor {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(&name.clone()),
             size,
             mip_level_count: 1,
@@ -138,7 +139,7 @@ impl Texture {
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
         });
 
-        state.queue.write_texture(
+        queue.write_texture(
             wgpu::ImageCopyTexture {
                 aspect: wgpu::TextureAspect::All,
                 texture: &texture,
@@ -155,7 +156,7 @@ impl Texture {
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = state.device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             ..Default::default()
         });
 
