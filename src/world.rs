@@ -10,12 +10,13 @@ use crate::{
 
 const CHUNK_SIZE: u32 = 16;
 
-const NOISE_SIZE: u32 = 526;
+const NOISE_SIZE: u32 = 1024;
 const FREQUENCY: f32 = 1. / 64.;
-const CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
+const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 const WORLD_HEIGHT: u8 = u8::MAX;
-
-pub const LOADED_CHUNK: u32 = 9;
+// There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
+pub const CHUNKS_PER_ROW: u32 = 12;
+pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -24,7 +25,9 @@ pub struct Chunk {
     pub y: i32,
     pub cubes: Vec<CubeData>,
     pub chunk_bind_group: wgpu::BindGroup,
-    pub current_chunk_offset_buffer: wgpu::Buffer,
+    // pub chunk_position_buffer: wgpu::Buffer,
+    pub chunk_data_buffer: wgpu::Buffer,
+    pub chunk_position_buffer: wgpu::Buffer,
 }
 
 #[derive(Debug)]
@@ -49,18 +52,12 @@ pub struct World {
     // This would translate to the for now hard coded edge vectors in the pnoise algo
     pub seed: u32,
     pub noise_data: Vec<f32>,
-    pub chunks_buffer: wgpu::Buffer,
-    pub current_chunk_bind_group_layout: wgpu::BindGroupLayout,
+    pub chunk_data_layout: wgpu::BindGroupLayout,
 }
 
 impl World {
     pub fn update_current_chunk_buffer(&self, chunk: &Chunk, state: &State) {
-        // println!("CHUNK {} {}", chunk.x, chunk.y);
-        // state.queue.write_buffer(
-        //     &self.current_chunk_offset_buffer,
-        //     0,
-        //     bytemuck::cast_slice(&[chunk.x, chunk.y]),
-        // );
+        // todo!()
     }
     pub fn init_world(model: Rc<RefCell<Model>>, device: &wgpu::Device) -> Self {
         let noise_data =
@@ -68,10 +65,9 @@ impl World {
         let mut chunks = vec![];
 
         // TODO: check if this works also work for non easy to sqrt nums (such as 9)
-        let offset = ((f32::sqrt(LOADED_CHUNK as f32)) / 2.0) as i32;
+        let offset = (CHUNKS_PER_ROW / 2) as i32;
 
-        let current_chunk_bind_group_layout =
-            device.create_bind_group_layout(&Chunk::get_bind_group_layout());
+        let chunk_data_layout = device.create_bind_group_layout(&Chunk::get_bind_group_layout());
 
         for j in -offset..=offset {
             for i in -offset..=offset {
@@ -81,44 +77,14 @@ impl World {
                     &noise_data,
                     model.clone(),
                     device,
-                    &current_chunk_bind_group_layout,
+                    &chunk_data_layout,
                 ));
             }
         }
 
-        // The idea is to create a storage buffer to store blocks data, each chunk will get it's own drawcall
-        // - every instance of a block in a chunk has a 16 byte data [x:u32][y:u32][z:u32][block_type:u32]
-        // - this also means that placing a block is simply a matter of adding a instance and updating the buffer at that point
-
-        let chunk_region = ((CHUNK_SIZE as u64 * CHUNK_SIZE as u64) * WORLD_HEIGHT as u64) * 4 * 4;
-        let size = chunk_region * LOADED_CHUNK as u64;
-
-        let mut buffer: Vec<u32> = vec![0; size as usize];
-
-        for j in 0..3 {
-            for i in 0..3 {
-                let chunk = &chunks[(j * 3) + i];
-                let mem = ((j * 3) + i) * (chunk_region as usize);
-                println!("CHUNGUS {} {} - MEM {}", chunk.x, chunk.y, mem);
-                for (cube_index, cube) in chunk.cubes.iter().enumerate() {
-                    buffer[(mem + cube_index * 4) + 0] = cube.position[0] as u32;
-                    buffer[(mem + cube_index * 4) + 1] = cube.position[1] as u32;
-                    buffer[(mem + cube_index * 4) + 2] = cube.position[2] as u32;
-                    buffer[(mem + cube_index * 4) + 3] = cube.ctype as u32;
-                }
-            }
-        }
-
-        let chunks_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&buffer),
-            label: Some("chunks_buffer"),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
         Self {
-            current_chunk_bind_group_layout,
+            chunk_data_layout,
             chunks,
-            chunks_buffer,
             noise_data,
             seed: 0,
         }
@@ -129,16 +95,28 @@ impl Chunk {
     pub fn get_bind_group_layout() -> BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
             label: Some("chunk_bind_group"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
         }
     }
     pub fn new(
@@ -147,20 +125,30 @@ impl Chunk {
         noise_data: &Vec<f32>,
         model: Rc<RefCell<Model>>,
         device: &wgpu::Device,
-        layout: &BindGroupLayout,
+        chunk_data_layout: &BindGroupLayout,
     ) -> Self {
+        let step = 4 as usize;
+
+        let buffer_size =
+            ((CHUNK_SIZE as usize * CHUNK_SIZE as usize) * WORLD_HEIGHT as usize) * step;
+
+        // Cpu representation
         let mut cubes: Vec<CubeData> = vec![];
+        // Data representation to send to gpu
+        let mut cubes_data: Vec<u32> = vec![0; buffer_size as usize];
 
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
-                let mut sample_x = (CHUNK_SIZE as i32 * x + i as i32) % NOISE_SIZE as i32;
-                let mut sample_y = (CHUNK_SIZE as i32 * y + j as i32) % NOISE_SIZE as i32;
+                let mut sample_x = (x * CHUNK_SIZE as i32) + i as i32 % NOISE_SIZE as i32;
+                let mut sample_y = (y * CHUNK_SIZE as i32) + j as i32 % NOISE_SIZE as i32;
                 // Wrap around if negative chunk coordinate
                 if sample_x < 0 {
-                    sample_x = NOISE_SIZE as i32 + (sample_x % CHUNK_PER_ROW as i32);
+                    sample_x =
+                        NOISE_SIZE as i32 + (sample_x % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
                 }
                 if sample_y < 0 {
-                    sample_y = NOISE_SIZE as i32 + (sample_y % CHUNK_PER_ROW as i32);
+                    sample_y =
+                        NOISE_SIZE as i32 + (sample_y % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
                 }
 
                 let y_offset =
@@ -168,40 +156,54 @@ impl Chunk {
                         * 0.5)
                         * 10.0) as u32;
                 for y in 0..=y_offset {
+                    cubes_data[cubes.len() * step + 0] = i;
+                    cubes_data[cubes.len() * step + 1] = y;
+                    cubes_data[cubes.len() * step + 2] = j;
+                    cubes_data[cubes.len() * step + 3] = CubeType::Dirt as u32;
                     cubes.push(CubeData {
                         position: [i, y, j],
                         ctype: CubeType::Dirt,
                         model: model.clone(),
                     });
+
                     model.borrow_mut().instances += 1;
                 }
             }
         }
 
-        // TODO: Update name
-        let current_chunk_offset_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                contents: bytemuck::cast_slice(&[x as i32, y as i32]),
-                label: Some("current_chunk_buffer"),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let chunk_position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&[x as i32, y as i32]),
+            label: Some("chunk_position_buffer"),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let chunk_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&cubes_data),
+            label: Some("chunk_data_buffer"),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
 
         let chunk_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout,
+            layout: chunk_data_layout,
             label: None,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                // bind the first, if it changes per mesh we will update the bind group later
-                resource: current_chunk_offset_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: chunk_position_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: chunk_data_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         Self {
             x,
             y,
             cubes,
-            current_chunk_offset_buffer,
             chunk_bind_group,
+            chunk_data_buffer,
+            chunk_position_buffer,
         }
     }
 }

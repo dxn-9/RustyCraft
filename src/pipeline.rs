@@ -102,16 +102,6 @@ impl Pipeline {
                             },
                             count: None,
                         },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: wgpu::ShaderStages::VERTEX,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None, // TODO: look into this
-                            },
-                            count: None,
-                        },
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -134,10 +124,6 @@ impl Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: view_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: state.world.chunks_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -197,7 +183,7 @@ impl Pipeline {
                     bind_group_layouts: &[
                         &bind_group_0_layout,
                         &bind_group_1_layout,
-                        &state.world.current_chunk_bind_group_layout,
+                        &state.world.chunk_data_layout,
                     ],
                     push_constant_ranges: &[],
                 });

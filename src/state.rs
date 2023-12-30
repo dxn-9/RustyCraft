@@ -245,8 +245,6 @@ impl State {
                     rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
                     rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
                     for chunk in self.world.chunks.iter() {
-                        self.world.update_current_chunk_buffer(chunk, &self);
-
                         rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
                         rpass.draw_indexed(
                             0..mesh._indices.len() as u32,
