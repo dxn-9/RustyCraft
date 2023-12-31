@@ -249,7 +249,7 @@ impl State {
                         rpass.draw_indexed(
                             0..mesh._indices.len() as u32,
                             0,
-                            0..chunk.cubes.len() as u32,
+                            0..chunk.blocks.len() as u32,
                         );
                     }
                 }

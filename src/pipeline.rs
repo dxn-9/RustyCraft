@@ -235,5 +235,4 @@ pub struct Pipeline {
     pub bind_group_0: wgpu::BindGroup,
     pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
-    // TODO: Multiple models
 }

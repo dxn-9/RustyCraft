@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use glam::{vec3, Vec3};
+use rand::random;
 use wgpu::{util::DeviceExt, BindGroupLayout, BindGroupLayoutDescriptor};
 
 use crate::{
@@ -23,7 +24,7 @@ pub struct Chunk {
     // probably there needs to be a cube type with more info ( regarding type, etc. )
     pub x: i32,
     pub y: i32,
-    pub cubes: Vec<CubeData>,
+    pub blocks: Vec<BlockData>,
     pub chunk_bind_group: wgpu::BindGroup,
     // pub chunk_position_buffer: wgpu::Buffer,
     pub chunk_data_buffer: wgpu::Buffer,
@@ -31,20 +32,43 @@ pub struct Chunk {
 }
 
 #[derive(Debug)]
-pub struct CubeData {
-    pub ctype: CubeType,
+pub struct BlockData {
+    pub btype: BlockType,
     pub position: [u32; 3],
     pub model: Rc<RefCell<Model>>,
 }
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
-pub enum CubeType {
-    Empty,
-    Dirt,
-    Water,
-    Wood,
-    Stone,
+pub enum BlockType {
+    Grass = 5,
+    Dirt = 4,
+    Water = 3,
+    Wood = 2,
+    Leaf = 1,
+    Stone = 0,
+}
+
+impl BlockType {
+    const U_STONE_THRESHOLD: u32 = 20;
+    const L_STONE_THRESHOLD: u32 = 1;
+
+    pub fn from_y_position(y: u32) -> BlockType {
+        if y > Self::U_STONE_THRESHOLD {
+            let t: f32 = random();
+            let scaler = (y as f32 - Self::U_STONE_THRESHOLD as f32) / 10.0;
+            let res = t + scaler;
+            if res > 1.0 {
+                BlockType::Stone
+            } else {
+                BlockType::Dirt
+            }
+        } else if y < Self::L_STONE_THRESHOLD {
+            BlockType::Stone
+        } else {
+            BlockType::Dirt
+        }
+    }
 }
 
 pub struct World {
@@ -137,9 +161,9 @@ impl Chunk {
             ((CHUNK_SIZE as usize * CHUNK_SIZE as usize) * WORLD_HEIGHT as usize) * step;
 
         // Cpu representation
-        let mut cubes: Vec<CubeData> = vec![];
+        let mut blocks: Vec<BlockData> = vec![];
         // Data representation to send to gpu
-        let mut cubes_data: Vec<u32> = vec![0; buffer_size as usize];
+        let mut block_data: Vec<u32> = vec![0; buffer_size as usize];
 
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
@@ -155,18 +179,23 @@ impl Chunk {
                         NOISE_SIZE as i32 + (sample_y % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
                 }
 
-                let y_offset =
+                let y_top =
                     (noise_data[((sample_y * NOISE_SIZE as i32) + sample_x) as usize] + 1.0) * 0.5;
-                let y_offset = (f32::powf(100.0, y_offset)) as u32;
+                let y_top = (f32::powf(100.0, y_top) - 1.0) as u32;
 
-                for y in 0..=y_offset {
-                    cubes_data[cubes.len() * step + 0] = i;
-                    cubes_data[cubes.len() * step + 1] = y;
-                    cubes_data[cubes.len() * step + 2] = j;
-                    cubes_data[cubes.len() * step + 3] = CubeType::Dirt as u32;
-                    cubes.push(CubeData {
+                for y in 0..=y_top {
+                    let mut block_type = match BlockType::from_y_position(y) {
+                        BlockType::Dirt if y == y_top => BlockType::Grass,
+                        b => b,
+                    };
+
+                    block_data[blocks.len() * step + 0] = i;
+                    block_data[blocks.len() * step + 1] = y;
+                    block_data[blocks.len() * step + 2] = j;
+                    block_data[blocks.len() * step + 3] = block_type as u32;
+                    blocks.push(BlockData {
                         position: [i, y, j],
-                        ctype: CubeType::Dirt,
+                        btype: BlockType::Grass,
                         model: model.clone(),
                     });
                 }
@@ -179,7 +208,7 @@ impl Chunk {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
         let chunk_data_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&cubes_data),
+            contents: bytemuck::cast_slice(&block_data),
             label: Some("chunk_data_buffer"),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
@@ -202,7 +231,7 @@ impl Chunk {
         Self {
             x,
             y,
-            cubes,
+            blocks,
             chunk_bind_group,
             chunk_data_buffer,
             chunk_position_buffer,

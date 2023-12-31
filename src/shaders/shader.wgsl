@@ -17,7 +17,8 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) normals: vec3<f32>,
-    @location(2) chunk_position: vec2<i32>
+    @location(2) chunk_position: vec2<i32>,
+    @location(3) block_type: u32
 }
 
 
@@ -55,13 +56,14 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     instance_transform.z = f32(chunk_data[instance_data.instance_index * u32(4) + u32(2)]) + f32(current_chunk.y * 16);
     instance_transform.w = 0.0;
 
-    instance_transform.y -= 100.0;
+    instance_transform.y -= 50.0;
 
 
 
 
     out.chunk_position = current_chunk;
     out.normals = in.normals;
+    out.block_type = chunk_data[instance_data.instance_index * u32(4) + u32(3)];
 
 
     // let instance_transform = vec4<f32>(instance_data.instance_transform, 1.0);
@@ -79,15 +81,22 @@ var t_sampler: sampler;
 struct FragmentInput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) normals: vec3<f32>,
-    @location(2) current_chunk: vec2<i32>
+    @location(2) current_chunk: vec2<i32>,
+    @location(3) block_type: u32
 }
 
+
+const TOT_BLOCK_TYPES: f32 = 6.0;
 
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
+    let step = 1.0 / TOT_BLOCK_TYPES;
+
+    let tex_coords = vec2<f32>(in.tex_coords.x, (in.tex_coords.y / TOT_BLOCK_TYPES) + (step * f32(in.block_type)));
+
     let normals_add = dot(vec3<f32>(0.0, 1.0, 0.0), in.normals);
-    let texture = vec4<f32>(textureSample(diffuse, t_sampler, in.tex_coords).xyz, 1.0);
+    let texture = vec4<f32>(textureSample(diffuse, t_sampler, tex_coords).xyz, 1.0);
     var result: vec4<f32>;
 
     result = texture * clamp(normals_add, 0.5, 1.0);
