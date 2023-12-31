@@ -1,9 +1,6 @@
 use image::{error::DecodingError, GenericImageView, ImageError};
 
-use crate::{
-    state::State,
-    utils::noise::{create_perlin_noise_data, perlin_noise},
-};
+use crate::{state::State, utils::noise::perlin_noise};
 
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -68,8 +65,17 @@ impl Texture {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             format: wgpu::TextureFormat::Rgba8Unorm,
         });
+        let mut perlin_noise_data: Vec<f32> = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                perlin_noise_data.push(perlin_noise(
+                    x as f32 * frequency,
+                    y as f32 * frequency,
+                    (width as f32 * frequency) as u32,
+                ))
+            }
+        }
 
-        let perlin_noise_data = create_perlin_noise_data(width, height, frequency);
         let data: Vec<_> = perlin_noise_data
             .iter()
             .map(|v| {

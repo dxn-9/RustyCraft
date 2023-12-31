@@ -96,15 +96,16 @@ pub(crate) mod noise {
     }
     // pub fn surflet(gridX: u32, gridY: u32) {}
     // pub fn noise(x: f32, y: f32, per: f32) {}
-    pub fn create_perlin_noise_data(width: u32, height: u32, frequency: f32) -> Vec<f32> {
+    pub fn create_world_noise_data(width: u32, height: u32, frequency: f32) -> Vec<f32> {
         let mut data: Vec<f32> = Vec::with_capacity((width * height) as usize);
 
         for y in 0..height {
             for x in 0..width {
-                data.push(perlin_noise(
+                data.push(fbm(
                     (x as f32) * frequency,
                     (y as f32) * frequency,
                     (width as f32 * frequency) as u32,
+                    4,
                 ));
             }
         }

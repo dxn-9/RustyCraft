@@ -16,9 +16,10 @@ pub trait PerVertex<T: Sized> {
 }
 
 impl VertexData {
-    pub fn new(_position: [f32; 3], _tex_coords: [f32; 2]) -> Self {
+    pub fn new(_position: [f32; 3], _normals: [f32; 3], _tex_coords: [f32; 2]) -> Self {
         Self {
             _position,
+            _normals,
             _tex_coords,
         }
     }
@@ -39,9 +40,14 @@ impl PerVertex<Self> for VertexData {
                     shader_location: 0,
                 },
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                    shader_location: 2,
                 },
             ],
         }
@@ -66,10 +72,10 @@ pub type ModelMatrix = [[f32; 4]; 4];
 impl Mesh {
     pub fn plane(w: f32, h: f32, device: &wgpu::Device) -> Self {
         let _vertex_data = vec![
-            VertexData::new([-1.0 * w, -1.0 * h, 0.0], [0.0, 0.0]),
-            VertexData::new([-1.0 * w, 1.0 * h, 0.0], [0.0, 1.0]),
-            VertexData::new([1.0 * w, 1.0 * h, 0.0], [1.0, 1.0]),
-            VertexData::new([1.0 * w, -1.0 * h, 0.0], [1.0, 0.0]),
+            VertexData::new([-1.0 * w, -1.0 * h, 0.0], [0.0, 0.0, -1.0], [0.0, 0.0]),
+            VertexData::new([-1.0 * w, 1.0 * h, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0]),
+            VertexData::new([1.0 * w, 1.0 * h, 0.0], [0.0, 0.0, -1.0], [1.0, 1.0]),
+            VertexData::new([1.0 * w, -1.0 * h, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0]),
         ];
         let _indices = vec![0, 1, 2, 0, 2, 3];
 
@@ -178,7 +184,9 @@ impl Model {
 
         for model in obj_models.iter() {
             let o_mesh = &model.mesh;
+
             let mut _indices: Vec<u32> = vec![];
+            let mut _normals: Vec<[f32; 3]> = vec![];
             let mut positions: Vec<[f32; 3]> = vec![];
             let mut tex_coords: Vec<[f32; 2]> = vec![];
             for i in 0..o_mesh.positions.len() / 3 {
@@ -187,6 +195,13 @@ impl Model {
                     o_mesh.positions[i * 3 + 1],
                     o_mesh.positions[i * 3 + 2],
                 ]);
+            }
+            for i in 0..o_mesh.normals.len() / 3 {
+                _normals.push([
+                    o_mesh.normals[i * 3 + 0],
+                    o_mesh.normals[i * 3 + 1],
+                    o_mesh.normals[i * 3 + 2],
+                ])
             }
             for index in o_mesh.indices.iter() {
                 _indices.push(*index)
@@ -198,7 +213,7 @@ impl Model {
             let material_id = o_mesh.material_id.unwrap_or(0) as u32;
 
             let _vertex_data: Vec<_> = (0..positions.len())
-                .map(|i| VertexData::new(positions[i], tex_coords[i]))
+                .map(|i| VertexData::new(positions[i], _normals[i], tex_coords[i]))
                 .collect();
 
             let vertex_buffer = Some(device.create_buffer_init(
@@ -316,5 +331,6 @@ pub struct InstanceData {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexData {
     pub _position: [f32; 3],
+    pub _normals: [f32; 3],
     pub _tex_coords: [f32; 2],
 }

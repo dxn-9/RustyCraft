@@ -11,11 +11,11 @@ use crate::{
 const CHUNK_SIZE: u32 = 16;
 
 const NOISE_SIZE: u32 = 1024;
-const FREQUENCY: f32 = 1. / 64.;
+const FREQUENCY: f32 = 1. / 128.;
 const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 const WORLD_HEIGHT: u8 = u8::MAX;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 12;
+pub const CHUNKS_PER_ROW: u32 = 15;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 #[derive(Debug)]
@@ -61,16 +61,20 @@ impl World {
     }
     pub fn init_world(model: Rc<RefCell<Model>>, device: &wgpu::Device) -> Self {
         let noise_data =
-            crate::utils::noise::create_perlin_noise_data(NOISE_SIZE, NOISE_SIZE, FREQUENCY);
+            crate::utils::noise::create_world_noise_data(NOISE_SIZE, NOISE_SIZE, FREQUENCY);
         let mut chunks = vec![];
 
-        // TODO: check if this works also work for non easy to sqrt nums (such as 9)
-        let offset = (CHUNKS_PER_ROW / 2) as i32;
+        let lb = (CHUNKS_PER_ROW / 2) as i32;
+        let ub = if CHUNKS_PER_ROW % 2 == 0 {
+            (CHUNKS_PER_ROW / 2 - 1) as i32
+        } else {
+            (CHUNKS_PER_ROW / 2) as i32
+        };
 
         let chunk_data_layout = device.create_bind_group_layout(&Chunk::get_bind_group_layout());
 
-        for j in -offset..=offset {
-            for i in -offset..=offset {
+        for j in -lb..=ub {
+            for i in -lb..=ub {
                 chunks.push(Chunk::new(
                     i,
                     j,
@@ -152,9 +156,9 @@ impl Chunk {
                 }
 
                 let y_offset =
-                    (((noise_data[((sample_y * NOISE_SIZE as i32) + sample_x) as usize] + 1.0)
-                        * 0.5)
-                        * 10.0) as u32;
+                    (noise_data[((sample_y * NOISE_SIZE as i32) + sample_x) as usize] + 1.0) * 0.5;
+                let y_offset = (f32::powf(100.0, y_offset)) as u32;
+
                 for y in 0..=y_offset {
                     cubes_data[cubes.len() * step + 0] = i;
                     cubes_data[cubes.len() * step + 1] = y;
@@ -165,8 +169,6 @@ impl Chunk {
                         ctype: CubeType::Dirt,
                         model: model.clone(),
                     });
-
-                    model.borrow_mut().instances += 1;
                 }
             }
         }
