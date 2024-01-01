@@ -95,11 +95,11 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
     let tex_coords = vec2<f32>(in.tex_coords.x, (in.tex_coords.y / TOT_BLOCK_TYPES) + (step * f32(in.block_type)));
 
-    let normals_add = dot(vec3<f32>(0.0, 1.0, 0.0), in.normals);
+    let normals_add = dot(vec3<f32>(0.0, 1.0, -0.5), in.normals);
     let texture = vec4<f32>(textureSample(diffuse, t_sampler, tex_coords).xyz, 1.0);
     var result: vec4<f32>;
 
-    result = texture * clamp(normals_add, 0.5, 1.0);
+    result = texture * clamp(normals_add, 0.2, 1.0);
 
     return result;
 //     return vec4<f32>((f32(in.current_chunk.x + 4) / 9.0), f32((in.current_chunk.y + 4)) / 9.0, 1.0, 1.0);
