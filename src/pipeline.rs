@@ -72,6 +72,16 @@ impl Pipeline {
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some("bind_group_0"),
                     entries: &[
+                        // wgpu::BindGroupLayoutEntry {
+                        //     binding: 0,
+                        //     visibility: wgpu::ShaderStages::VERTEX,
+                        //     ty: wgpu::BindingType::Buffer {
+                        //         ty: wgpu::BufferBindingType::Uniform,
+                        //         has_dynamic_offset: false,
+                        //         min_binding_size: None,
+                        //     },
+                        //     count: None,
+                        // },
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
                             visibility: wgpu::ShaderStages::VERTEX,
@@ -84,16 +94,6 @@ impl Pipeline {
                         },
                         wgpu::BindGroupLayoutEntry {
                             binding: 1,
-                            visibility: wgpu::ShaderStages::VERTEX,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 2,
                             visibility: wgpu::ShaderStages::VERTEX,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
@@ -108,69 +108,69 @@ impl Pipeline {
             layout: &bind_group_0_layout,
             label: None,
             entries: &[
+                // wgpu::BindGroupEntry {
+                // binding: 0,
+                // bind the first, if it changes per mesh we will update the bind group later
+                // resource: state.model.borrow().meshes[0]
+                //     .world_mat_buffer
+                //     .as_ref()
+                //     .expect("Expected to have atleast 1 mesh")
+                //     .as_entire_binding(),
+                // },
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    // bind the first, if it changes per mesh we will update the bind group later
-                    resource: state.model.borrow().meshes[0]
-                        .world_mat_buffer
-                        .as_ref()
-                        .expect("Expected to have atleast 1 mesh")
-                        .as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
                     resource: projection_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
+                    binding: 1,
                     resource: view_buffer.as_entire_binding(),
                 },
             ],
         });
 
-        let bind_group_1_layout =
-            state
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("bind_group_1"),
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                multisampled: false,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                });
+        // let bind_group_1_layout =
+        //     state
+        //         .device
+        //         .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        //             label: Some("bind_group_1"),
+        //             entries: &[
+        //                 wgpu::BindGroupLayoutEntry {
+        //                     binding: 0,
+        //                     visibility: wgpu::ShaderStages::FRAGMENT,
+        //                     ty: wgpu::BindingType::Texture {
+        //                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
+        //                         view_dimension: wgpu::TextureViewDimension::D2,
+        //                         multisampled: false,
+        //                     },
+        //                     count: None,
+        //                 },
+        //                 wgpu::BindGroupLayoutEntry {
+        //                     binding: 1,
+        //                     visibility: wgpu::ShaderStages::FRAGMENT,
+        //                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+        //                     count: None,
+        //                 },
+        //             ],
+        //         });
 
-        let bind_group_1 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("bind_group_1"),
-            layout: &bind_group_1_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(
-                        &state.model.borrow().materials[0].diffuse.view,
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(
-                        &state.model.borrow().materials[0].diffuse.sampler,
-                    ),
-                },
-            ],
-        });
+        // let bind_group_1 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        //     label: Some("bind_group_1"),
+        //     layout: &bind_group_1_layout,
+        //     entries: &[
+        //         wgpu::BindGroupEntry {
+        //             binding: 0,
+        //             resource: wgpu::BindingResource::TextureView(
+        //                 &state.model.borrow().materials[0].diffuse.view,
+        //             ),
+        //         },
+        //         wgpu::BindGroupEntry {
+        //             binding: 1,
+        //             resource: wgpu::BindingResource::Sampler(
+        //                 &state.model.borrow().materials[0].diffuse.sampler,
+        //             ),
+        //         },
+        //     ],
+        // });
         // Textures
         let depth_texture = Texture::create_depth_texture(state);
 
@@ -182,8 +182,8 @@ impl Pipeline {
                     label: None,
                     bind_group_layouts: &[
                         &bind_group_0_layout,
-                        &bind_group_1_layout,
-                        // &state.world.chunk_data_layout,
+                        // &bind_group_1_layout,
+                        &state.world.chunk_data_layout,
                     ],
                     push_constant_ranges: &[],
                 });
@@ -226,7 +226,7 @@ impl Pipeline {
             projection_buffer,
             depth_texture,
             bind_group_0,
-            bind_group_1,
+            // bind_group_1,
             pipeline: render_pipeline,
         }
     }
@@ -237,6 +237,6 @@ pub struct Pipeline {
     pub view_buffer: wgpu::Buffer,
     pub pipeline: wgpu::RenderPipeline,
     pub bind_group_0: wgpu::BindGroup,
-    pub bind_group_1: wgpu::BindGroup,
+    // pub bind_group_1: wgpu::BindGroup,
     pub depth_texture: Texture,
 }

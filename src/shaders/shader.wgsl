@@ -22,16 +22,16 @@ struct VertexOutput {
 }
 
 
+// @group(0) @binding(0) 
+// var<uniform> transform: mat4x4<f32>;
 @group(0) @binding(0) 
-var<uniform> transform: mat4x4<f32>;
-@group(0) @binding(1) 
 var<uniform> projection: mat4x4<f32>;
-@group(0) @binding(2) 
+@group(0) @binding(1) 
 var<uniform> view: mat4x4<f32>;
 @group(0) @binding(3)
 var <uniform> chunks_per_row: u32;
-// @group(2) @binding(0)
-// var <uniform> current_chunk: vec2<i32>;
+@group(1) @binding(0)
+var <uniform> current_chunk: vec2<i32>;
 // @group(2) @binding(1)
 // var <storage, read> chunk_data: vec4<u32>;
 
@@ -39,16 +39,19 @@ var <uniform> chunks_per_row: u32;
 @vertex
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = projection * view * transform * vec4<f32>(in.position.xyz, 1.0);
+
+    let chunk_offset = vec4<f32>(f32(current_chunk.x) * 16.0, 0.0, f32(current_chunk.y) * 16.0, 0.0);
+
+    out.clip_position = projection * view * (vec4<f32>(in.position.xyz, 1.0) + chunk_offset);
 
     return out;
 }
 
 
-@group(1) @binding(0)
-var diffuse: texture_2d<f32>;
-@group(1) @binding(1)
-var t_sampler: sampler;
+// @group(1) @binding(0)
+// var diffuse: texture_2d<f32>;
+// @group(1) @binding(1)
+// var t_sampler: sampler;
 
 struct FragmentInput {
     @location(0) tex_coords: vec2<f32>,

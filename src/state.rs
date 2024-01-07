@@ -2,7 +2,7 @@ use std::{cell::RefCell, f32::consts, rc::Rc};
 
 use crate::{
     camera::{Camera, CameraController},
-    cube::{build_mesh, CUBE_INDICES, CUBE_VERTEX, CUBE_VERTEX_NON_INDEXED},
+    // cube::{build_mesh, CUBE_INDICES, CUBE_VERTEX, CUBE_VERTEX_NON_INDEXED},
     material::Texture,
     model::{InstanceData, Model},
     pipeline::{self, Pipeline, Uniforms},
@@ -70,27 +70,13 @@ impl State {
         };
 
         surface.configure(&device, &config);
-        let model =
-            Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
-        let model = Rc::new(RefCell::new(model));
-        let world = World::init_world(model.clone(), &device);
-
-        use wgpu::util::DeviceExt;
-        let vbuffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&CUBE_VERTEX),
-            label: Some("xd"),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let ibuffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&CUBE_INDICES),
-            label: Some("ind"),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        // let model =
+        //     Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
+        // let model = Rc::new(RefCell::new(model));
+        let world = World::init_world(&device);
 
         let mut state = Self {
-            vbuffer,
-            ibuffer,
-            model,
+            // model,
             camera,
             pipelines: vec![],
             config,
@@ -156,17 +142,17 @@ impl State {
         // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        for (i, mesh) in self.model.as_ref().borrow().meshes.iter().enumerate() {
-            // mesh.rotation * rotation_increment;
-            self.queue.write_buffer(
-                self.model.as_ref().borrow().meshes[0]
-                    .world_mat_buffer
-                    .as_ref()
-                    .unwrap(),
-                0,
-                bytemuck::cast_slice(&[mesh._world_matrix]),
-            );
-        }
+        // for (i, mesh) in self.model.as_ref().borrow().meshes.iter().enumerate() {
+        // mesh.rotation * rotation_increment;
+        // self.queue.write_buffer(
+        //     self.model.as_ref().borrow().meshes[0]
+        //         .world_mat_buffer
+        //         .as_ref()
+        //         .unwrap(),
+        //     0,
+        //     bytemuck::cast_slice(&[mesh._world_matrix]),
+        // );
+        // }
         // this is bad, it should in a uniform, but im just testing
 
         if self.camera_controller.movement_vector != Vec3::ZERO {
@@ -185,16 +171,19 @@ impl State {
             self.camera.needs_update = false;
         }
     }
-    pub fn draw(&self) {
-        let a = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                contents: bytemuck::cast_slice(&CUBE_VERTEX_NON_INDEXED),
-                label: Some("x"),
-                usage: BufferUsages::VERTEX,
-            });
-        let (buf, ind) = build_mesh(&self.device, &self.camera.eye);
-        println!("ind {}", ind);
+    pub fn draw(&mut self) {
+        for chunk in self.world.chunks.iter_mut() {
+            chunk.build_mesh(&self.camera.eye, &self.queue);
+        }
+        // let a = self
+        //     .device
+        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //         contents: bytemuck::cast_slice(&CUBE_VERTEX_NON_INDEXED),
+        //         label: Some("x"),
+        //         usage: BufferUsages::VERTEX,
+        //     });
+        // let (buf, ind, il) = build_mesh(&self.device, &self.camera.eye);
+        // println!("ind {}", ind);
         let frame = self
             .surface
             .get_current_texture()
@@ -210,15 +199,15 @@ impl State {
             });
 
         let mut instances_buffers: Vec<wgpu::BufferSlice<'_>> = vec![];
-        let model_borrows: Vec<_> = self
-            .pipelines
-            .iter()
-            .map(|pipeline| self.model.borrow())
-            .collect();
+        // let model_borrows: Vec<_> = self
+        //     .pipelines
+        //     .iter()
+        //     .map(|pipeline| self.model.borrow())
+        //     .collect();
 
-        for model in model_borrows.iter() {
-            instances_buffers.push(model.instances_buffer.slice(..));
-        }
+        // for model in model_borrows.iter() {
+        //     instances_buffers.push(model.instances_buffer.slice(..));
+        // }
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -251,17 +240,19 @@ impl State {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
                 // rpass.set_vertex_buffer(1, instances_buffers[i]);
-                rpass.set_vertex_buffer(0, buf.slice(..));
-                // rpass.set_vertex_buffer(0, self.vbuffer.slice(..));
-                // rpass.set_index_buffer(self.ibuffer.slice(..), wgpu::IndexFormat::Uint32);
 
                 // for mesh in model_borrows[i].meshes.iter() {
                 rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
-                rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
-                rpass.draw(0..ind as u32, 0..1);
-                // for chunk in self.world.chunks.iter() {
-                // }
-                // }
+                // rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
+                for chunk in self.world.chunks.iter() {
+                    rpass.set_bind_group(1, &chunk.chunk_bind_group, &[]);
+                    rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
+                    rpass.set_index_buffer(
+                        chunk.chunk_index_buffer.slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    rpass.draw_indexed(0..chunk.indices, 0, 0..1);
+                }
             }
         }
         self.queue.submit(Some(encoder.finish()));
@@ -279,8 +270,6 @@ pub struct State {
     pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
     pub world: World,
-    pub vbuffer: wgpu::Buffer,
-    pub ibuffer: wgpu::Buffer,
     pub camera_controller: CameraController,
-    pub model: Rc<RefCell<Model>>,
+    // pub model: Rc<RefCell<Model>>,
 }
