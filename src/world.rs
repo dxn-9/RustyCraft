@@ -16,7 +16,7 @@ const FREQUENCY: f32 = 1. / 128.;
 const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 const WORLD_HEIGHT: u8 = u8::MAX;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 15;
+pub const CHUNKS_PER_ROW: u32 = 9;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 #[derive(Debug)]

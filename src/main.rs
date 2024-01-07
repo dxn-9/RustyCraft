@@ -26,6 +26,7 @@ use winit::{
 extern crate lazy_static;
 
 mod camera;
+mod cube;
 mod material;
 mod model;
 mod pipeline;

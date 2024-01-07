@@ -2,12 +2,14 @@ use std::{cell::RefCell, f32::consts, rc::Rc};
 
 use crate::{
     camera::{Camera, CameraController},
+    cube::{build_mesh, CUBE_INDICES, CUBE_VERTEX, CUBE_VERTEX_NON_INDEXED},
     material::Texture,
     model::{InstanceData, Model},
     pipeline::{self, Pipeline, Uniforms},
     world::World,
 };
 use glam::{vec2, Quat, Vec3};
+use wgpu::{util::DeviceExt, BufferUsages};
 use winit::{
     dpi::PhysicalSize,
     event::{DeviceEvent, ElementState, KeyEvent},
@@ -34,7 +36,7 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
+                    features: wgpu::Features::POLYGON_MODE_LINE,
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -72,7 +74,22 @@ impl State {
             Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
         let model = Rc::new(RefCell::new(model));
         let world = World::init_world(model.clone(), &device);
+
+        use wgpu::util::DeviceExt;
+        let vbuffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&CUBE_VERTEX),
+            label: Some("xd"),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let ibuffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&CUBE_INDICES),
+            label: Some("ind"),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         let mut state = Self {
+            vbuffer,
+            ibuffer,
             model,
             camera,
             pipelines: vec![],
@@ -169,6 +186,15 @@ impl State {
         }
     }
     pub fn draw(&self) {
+        let a = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                contents: bytemuck::cast_slice(&CUBE_VERTEX_NON_INDEXED),
+                label: Some("x"),
+                usage: BufferUsages::VERTEX,
+            });
+        let (buf, ind) = build_mesh(&self.device, &self.camera.eye);
+        println!("ind {}", ind);
         let frame = self
             .surface
             .get_current_texture()
@@ -225,34 +251,17 @@ impl State {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
                 // rpass.set_vertex_buffer(1, instances_buffers[i]);
+                rpass.set_vertex_buffer(0, buf.slice(..));
+                // rpass.set_vertex_buffer(0, self.vbuffer.slice(..));
+                // rpass.set_index_buffer(self.ibuffer.slice(..), wgpu::IndexFormat::Uint32);
 
-                for mesh in model_borrows[i].meshes.iter() {
-                    rpass.set_vertex_buffer(
-                        0,
-                        mesh.vertex_buffer
-                            .as_ref()
-                            .expect("vertex_buffer not set")
-                            .slice(..),
-                    );
-                    rpass.set_index_buffer(
-                        mesh.index_buffer
-                            .as_ref()
-                            .expect("index_buffer not set")
-                            .slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
-
-                    rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
-                    rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
-                    for chunk in self.world.chunks.iter() {
-                        rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                        rpass.draw_indexed(
-                            0..mesh._indices.len() as u32,
-                            0,
-                            0..chunk.blocks.len() as u32,
-                        );
-                    }
-                }
+                // for mesh in model_borrows[i].meshes.iter() {
+                rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
+                rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
+                rpass.draw(0..ind as u32, 0..1);
+                // for chunk in self.world.chunks.iter() {
+                // }
+                // }
             }
         }
         self.queue.submit(Some(encoder.finish()));
@@ -270,6 +279,8 @@ pub struct State {
     pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
     pub world: World,
+    pub vbuffer: wgpu::Buffer,
+    pub ibuffer: wgpu::Buffer,
     pub camera_controller: CameraController,
     pub model: Rc<RefCell<Model>>,
 }

@@ -31,7 +31,7 @@ impl PerVertex<Self> for VertexData {
     // This probably should be a macro so it would be less error prone
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: Self::size() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -39,16 +39,16 @@ impl PerVertex<Self> for VertexData {
                     offset: 0,
                     shader_location: 0,
                 },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x3,
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
-                    offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
-                    shader_location: 2,
-                },
+                // wgpu::VertexAttribute {
+                //     format: wgpu::VertexFormat::Float32x3,
+                //     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                //     shader_location: 1,
+                // },
+                // wgpu::VertexAttribute {
+                //     format: wgpu::VertexFormat::Float32x2,
+                //     offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                //     shader_location: 2,
+                // },
             ],
         }
     }
@@ -70,6 +70,7 @@ impl PerVertex<Self> for InstanceData {
 pub type ModelMatrix = [[f32; 4]; 4];
 
 impl Mesh {
+    // pub fn quad() -> Self {}
     pub fn plane(w: f32, h: f32, device: &wgpu::Device) -> Self {
         let _vertex_data = vec![
             VertexData::new([-1.0 * w, -1.0 * h, 0.0], [0.0, 0.0, -1.0], [0.0, 0.0]),

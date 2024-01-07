@@ -183,7 +183,7 @@ impl Pipeline {
                     bind_group_layouts: &[
                         &bind_group_0_layout,
                         &bind_group_1_layout,
-                        &state.world.chunk_data_layout,
+                        // &state.world.chunk_data_layout,
                     ],
                     push_constant_ranges: &[],
                 });
@@ -205,7 +205,11 @@ impl Pipeline {
                         targets: &[Some(swapchain_format.into())],
                     }),
 
-                    primitive: wgpu::PrimitiveState::default(),
+                    primitive: wgpu::PrimitiveState {
+                        polygon_mode: wgpu::PolygonMode::Line,
+
+                        ..Default::default()
+                    },
                     depth_stencil: Some(wgpu::DepthStencilState {
                         format: Texture::DEPTH_FORMAT,
                         depth_write_enabled: true,
