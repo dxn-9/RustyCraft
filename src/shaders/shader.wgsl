@@ -39,6 +39,16 @@ var <uniform> current_chunk: vec2<i32>;
 @vertex
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
+    // if u32(in.vertex_index) == u32(0) {
+    //     out.clip_position = vec4<f32>(0.5, 0.5, 0.5, 1.0);
+    // } else if in.vertex_index == u32(1) {
+    //     out.clip_position = vec4<f32>(0.0, 0.4, 0.5, 1.0);
+    // } else if in.vertex_index == u32(2) {
+    //     out.clip_position = vec4<f32>(0.5, 0.0, 0.5, 1.0);
+    // } else {
+    //     out.clip_position = vec4<f32>(0.5, 0.0, 0.5, 1.0);
+    // }
+
 
     let chunk_offset = vec4<f32>(f32(current_chunk.x) * 16.0, 0.0, f32(current_chunk.y) * 16.0, 0.0);
 
@@ -54,15 +64,14 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
 // var t_sampler: sampler;
 
 struct FragmentInput {
-    @location(0) tex_coords: vec2<f32>,
-    @location(1) normals: vec3<f32>,
-    @location(2) current_chunk: vec2<i32>,
-    @location(3) block_type: u32
-}
+        @location(0) tex_coords: vec2<f32>,
+        @location(1) normals: vec3<f32>,
+        @location(2) current_chunk: vec2<i32>,
+        @location(3) block_type: u32}
 
 
 
-@fragment
+    @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
     return vec4<f32>(1.0, 0.0, 0.0, 1.0);

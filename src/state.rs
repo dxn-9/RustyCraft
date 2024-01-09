@@ -73,7 +73,7 @@ impl State {
         // let model =
         //     Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
         // let model = Rc::new(RefCell::new(model));
-        let world = World::init_world(&device);
+        let mut world = World::init_world(&device, &queue);
 
         let mut state = Self {
             // model,
@@ -172,22 +172,11 @@ impl State {
         }
     }
     pub fn draw(&mut self) {
-        for chunk in self.world.chunks.iter_mut() {
-            chunk.build_mesh(&self.camera.eye, &self.queue);
-        }
-        // let a = self
-        //     .device
-        //     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //         contents: bytemuck::cast_slice(&CUBE_VERTEX_NON_INDEXED),
-        //         label: Some("x"),
-        //         usage: BufferUsages::VERTEX,
-        //     });
-        // let (buf, ind, il) = build_mesh(&self.device, &self.camera.eye);
-        // println!("ind {}", ind);
         let frame = self
             .surface
             .get_current_texture()
             .expect("Failed to acquire next swapchain texture");
+        // ?
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -239,6 +228,7 @@ impl State {
             for (i, pipeline) in self.pipelines.iter().enumerate() {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
+                rpass.set_vertex_buffer(0, self.world.chunk_vertex_buffer.slice(..));
                 // rpass.set_vertex_buffer(1, instances_buffers[i]);
 
                 // for mesh in model_borrows[i].meshes.iter() {
@@ -246,7 +236,6 @@ impl State {
                 // rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
                 for chunk in self.world.chunks.iter() {
                     rpass.set_bind_group(1, &chunk.chunk_bind_group, &[]);
-                    rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
                     rpass.set_index_buffer(
                         chunk.chunk_index_buffer.slice(..),
                         wgpu::IndexFormat::Uint32,
