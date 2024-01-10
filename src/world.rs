@@ -23,7 +23,7 @@ const NOISE_SIZE: u32 = 1024;
 const FREQUENCY: f32 = 1. / 128.;
 const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 2;
+pub const CHUNKS_PER_ROW: u32 = 20;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 type BlockMap = HashMap<i32, HashMap<i32, HashMap<i32, Rc<RefCell<Block>>>>>;
@@ -36,7 +36,7 @@ pub const CUBE_VERTEX: [f32; 24] = [
     -0.5, -0.5, -0.5,
     -0.5, 0.5, -0.5,
     0.5, 0.5, -0.5,
-    0.5, -1.5, -0.5,
+    0.5, -0.5, -0.5,
 
     -0.5, -0.5, 0.5,
     -0.5, 0.5, 0.5,
@@ -171,76 +171,49 @@ fn create_face_vertices(
     let mut i = 0;
     // There should be always 4 indices
     let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
-    let mut indices_map: Vec<u32> = Vec::with_capacity(6);
+    let mut indices_map: [u32; 6] = [0, 0, 0, 0, 0, 0];
 
     for ind in indices.iter() {
-        if !unique_indices.contains(ind) {
-            unique_indices[i] = *ind;
-            i += 1;
+        if unique_indices.contains(ind) {
+            continue;
+        } else {
+            unique_indices.push(*ind);
         }
     }
+    for (i, indices_map) in indices_map.iter_mut().enumerate() {
+        let index_of = unique_indices
+            .iter()
+            .enumerate()
+            .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
+            .unwrap();
+        *indices_map = index_of as u32;
+    }
 
-    let new_vertices = unique_indices
+    let mut new_vertices: Vec<_> = unique_indices
         .iter()
-        .enumerate()
-        .map(|(i, index)| {
+        .map(|index| {
             [
-                CUBE_VERTEX[(indices[*index as usize] * 3 + 0) as usize] + offset.x,
-                CUBE_VERTEX[(indices[*index as usize] * 3 + 1) as usize] + offset.y,
-                CUBE_VERTEX[(indices[*index as usize] * 3 + 2) as usize] + offset.z,
+                CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + offset.x,
+                CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + offset.y,
+                CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + offset.z,
             ]
         })
         .collect();
 
-    // [
-    //     for unique_index in unique_indices.iter() {
-    //         [
-    //             CUBE_VERTEX[(indices[0] * 3 + 0) as usize] + offset.x,
-    //             CUBE_VERTEX[(indices[0] * 3 + 1) as usize] + offset.y,
-    //             CUBE_VERTEX[(indices[0] * 3 + 2) as usize] + offset.y,
-    //         ]
-    //     }, // [
-    //     CUBE_VERTEX[(indices[0] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[0] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[0] * 3 + 2) as usize] + offset.z,
-    // ],
-    // [
-    //     CUBE_VERTEX[(indices[1] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[1] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[1] * 3 + 2) as usize] + offset.z,
-    // ],
-    // [
-    //     CUBE_VERTEX[(indices[2] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[2] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[2] * 3 + 2) as usize] + offset.z,
-    // ],
-    // [
-    //     CUBE_VERTEX[(indices[3] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[3] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[3] * 3 + 2) as usize] + offset.z,
-    // ],
-    // [
-    //     CUBE_VERTEX[(indices[4] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[4] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[4] * 3 + 2) as usize] + offset.z,
-    // ],
-    // [
-    //     CUBE_VERTEX[(indices[5] * 3 + 0) as usize] + offset.x,
-    //     CUBE_VERTEX[(indices[5] * 3 + 1) as usize] + offset.y,
-    //     CUBE_VERTEX[(indices[5] * 3 + 2) as usize] + offset.z,
-    // ],
-    // ]
-}
+    vertices.append(&mut new_vertices);
 
-fn get_last_4_indexes(len: usize) -> [u32; 4] {
-    let l = len as u32;
-    [l - 4, l - 3, l - 2, l - 1]
+    // 4 Vertices added per face
+    let vertex_offset = (vertices.len() - 4) as u32;
+    indices_map.iter_mut().for_each(|i| *i += vertex_offset);
+
+    indices_map
 }
 
 impl World {
     pub fn update_current_chunk_buffer(&self, chunk: &Chunk, state: &State) {
         // todo!()
     }
+    // TODO: im generating much 4x~ more vertices than needed
     pub fn create_all_chunk_vertices() -> (Vec<[f32; 3]>, VMap) {
         let mut v_map: VMap = HashMap::new();
         let mut v: Vec<[f32; 3]> = vec![];
@@ -250,34 +223,23 @@ impl World {
                 for y in 0..CHUNK_HEIGHT as u32 {
                     // Build all y coords
 
-                    // lm = local map
                     let mut lm: VMapValue = HashMap::new();
-                    create_face_vertices(
-                        FaceDirections::Top.get_indices(),
-                        &glam::vec3(x as f32, y as f32, z as f32),
-                        &mut v,
+                    lm.insert(
+                        FaceDirections::Top,
+                        create_face_vertices(
+                            FaceDirections::Top.get_indices(),
+                            &glam::vec3(x as f32, y as f32, z as f32),
+                            &mut v,
+                        ),
                     );
-                    // lm.insert(FaceDirections::Top, get_last_4_indexes(v.len()));
-                    if y == 0 {
-                        v.append(
-                            &mut create_vertices(
-                                FaceDirections::Bottom.get_indices(),
-                                &glam::vec3(x as f32, y as f32, z as f32),
-                            )
-                            .to_vec(),
-                        );
-                        lm.insert(FaceDirections::Bottom, get_last_6_indexes(v.len()));
-                    } else {
-                        lm.insert(
-                            FaceDirections::Bottom,
-                            v_map
-                                .get(&(x, y - 1, z))
-                                .unwrap()
-                                .get(&FaceDirections::Top)
-                                .unwrap()
-                                .clone(),
-                        );
-                    }
+                    lm.insert(
+                        FaceDirections::Bottom,
+                        create_face_vertices(
+                            FaceDirections::Bottom.get_indices(),
+                            &glam::vec3(x as f32, y as f32, z as f32),
+                            &mut v,
+                        ),
+                    );
 
                     // Build rest of coords
                     let t = lm.get(&FaceDirections::Top).unwrap();
@@ -286,8 +248,7 @@ impl World {
                     let left_face = [b[0], t[1], t[0], b[0], t[0], b[1]];
                     let right_face = [b[2], t[5], t[2], b[2], t[2], b[5]];
                     let front_face = [b[1], t[0], t[5], b[1], t[5], b[2]];
-                    let back_face = [b[5], t[2], t[1], b[5], t[2], b[0]];
-                    println!("left face {left_face:?}");
+                    let back_face = [b[5], t[2], t[1], b[5], t[1], b[0]];
                     lm.insert(FaceDirections::Left, left_face);
                     lm.insert(FaceDirections::Right, right_face);
                     lm.insert(FaceDirections::Front, front_face);
@@ -424,50 +385,39 @@ impl Chunk {
                 for face in faces.iter_mut() {
                     {
                         let face_chunk_pos = face.face_direction.get_normal_vector() + cube_pos;
-                        // Check if face is visible
+
                         if Chunk::is_outside_bounds(&face_chunk_pos)
                             || self.exists_block_at(&face_chunk_pos)
                         {
                             face.is_visible = false;
                         } else {
-                            // if Chunk::is_outside_chunk(&face_chunk_pos) {
-                            //     let target_chunk = (
-                            //         // face_chunk_pos.xz can be either -1 or 17
-                            //         self.x + (face_chunk_pos.x % (CHUNK_SIZE as f32 - 1.0)) as i32,
-                            //         self.y - (face_chunk_pos.z % (CHUNK_SIZE as f32 - 1.0)) as i32,
-                            //     );
-                            //     let next_chunk_pos = glam::vec3(
-                            //         if face_chunk_pos.x >= CHUNK_SIZE as f32 {
-                            //             0.0
-                            //         } else if face_chunk_pos.x < 0.0 {
-                            //             CHUNK_SIZE as f32 - 1.0
-                            //         } else {
-                            //             face_chunk_pos.x
-                            //         },
-                            //         face_chunk_pos.y,
-                            //         if face_chunk_pos.z >= CHUNK_SIZE as f32 {
-                            //             0.0
-                            //         } else if face_chunk_pos.z < 0.0 {
-                            //             CHUNK_SIZE as f32 - 1.0
-                            //         } else {
-                            //             face_chunk_pos.z
-                            //         },
-                            //     );
-                            //     let chunk = all_chunks
-                            //         .iter()
-                            //         .find(|c| c.x == target_chunk.0 && c.y == target_chunk.1);
-                            //     match chunk {
-                            //         Some(c) => {
-                            //             if c.exists_block_at(&next_chunk_pos) {
-                            //                 face.is_visible = false
-                            //             } else {
-                            //                 face.is_visible = true
-                            //             }
-                            //         }
-                            //         None => face.is_visible = true,
-                            //     }
-                            // } else {
-                            face.is_visible = true;
+                            if Chunk::is_outside_chunk(&face_chunk_pos) {
+                                let target_chunk_y = self.y
+                                    + (f32::floor(face_chunk_pos.z / CHUNK_SIZE as f32) as i32);
+                                let target_chunk_x = self.x
+                                    + (f32::floor(face_chunk_pos.x / CHUNK_SIZE as f32) as i32);
+
+                                let target_chunk_block = glam::vec3(
+                                    (face_chunk_pos.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                    face_chunk_pos.y,
+                                    (face_chunk_pos.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                );
+                                let target_chunk = all_chunks.iter().find(|chunk| {
+                                    chunk.x == target_chunk_x && chunk.y == target_chunk_y
+                                });
+                                match target_chunk {
+                                    Some(target_chunk) => {
+                                        if target_chunk.exists_block_at(&target_chunk_block) {
+                                            face.is_visible = false
+                                        } else {
+                                            face.is_visible = true
+                                        }
+                                    }
+                                    None => face.is_visible = true,
+                                }
+                            } else {
+                                face.is_visible = true;
+                            }
                         }
                     }
 
