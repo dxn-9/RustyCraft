@@ -47,7 +47,7 @@ impl State {
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let config = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: size.width,
@@ -58,7 +58,7 @@ impl State {
         };
 
         let camera = Camera {
-            aspect_ratio: config.width as f32 / config.height as f32,
+            aspect_ratio: surface_config.width as f32 / surface_config.height as f32,
             eye: glam::vec3(0.0, 0.0, -5.0),
             yaw: consts::FRAC_PI_2,
             pitch: 0.0,
@@ -69,17 +69,18 @@ impl State {
             needs_update: false,
         };
 
-        surface.configure(&device, &config);
-        // let model =
-        //     Model::from_path("assets/cube.obj", "cube".to_string(), &device, &queue).unwrap();
-        // let model = Rc::new(RefCell::new(model));
-        let mut world = World::init_world(&device, &queue);
+        surface.configure(&device, &surface_config);
+        let config = Config {
+            polygon_mode: wgpu::PolygonMode::Line,
+        };
+
+        let world = World::init_world(&device, &queue);
 
         let mut state = Self {
-            // model,
+            config,
             camera,
             pipelines: vec![],
-            config,
+            surface_config,
             instance,
             device,
             world,
@@ -123,6 +124,20 @@ impl State {
                 physical_key: PhysicalKey::Code(KeyCode::KeyQ),
                 ..
             } => self.camera_controller.movement_vector.y = -1.0 * is_pressed,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyF),
+                state: winit::event::ElementState::Pressed,
+                ..
+            } => {
+                if self.config.polygon_mode == wgpu::PolygonMode::Line {
+                    self.config.polygon_mode = wgpu::PolygonMode::Fill
+                } else {
+                    self.config.polygon_mode = wgpu::PolygonMode::Line
+                }
+
+                self.pipelines.pop();
+                self.pipelines.push(Pipeline::new(&self))
+            }
             _ => {}
         }
     }
@@ -132,9 +147,9 @@ impl State {
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.config.width = new_size.width.max(1);
-            self.config.height = new_size.height.max(1);
-            self.surface.configure(&self.device, &self.config);
+            self.surface_config.width = new_size.width.max(1);
+            self.surface_config.height = new_size.height.max(1);
+            self.surface.configure(&self.device, &self.surface_config);
             self.pipelines[0].depth_texture = Texture::create_depth_texture(&self);
         }
     }
@@ -187,16 +202,6 @@ impl State {
                 label: Some("command_encoder"),
             });
 
-        let mut instances_buffers: Vec<wgpu::BufferSlice<'_>> = vec![];
-        // let model_borrows: Vec<_> = self
-        //     .pipelines
-        //     .iter()
-        //     .map(|pipeline| self.model.borrow())
-        //     .collect();
-
-        // for model in model_borrows.iter() {
-        //     instances_buffers.push(model.instances_buffer.slice(..));
-        // }
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -226,9 +231,9 @@ impl State {
             });
 
             for (i, pipeline) in self.pipelines.iter().enumerate() {
+                println!("PIPELINE {}", i);
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
-                rpass.set_vertex_buffer(0, self.world.chunk_vertex_buffer.slice(..));
                 // rpass.set_vertex_buffer(1, instances_buffers[i]);
 
                 // for mesh in model_borrows[i].meshes.iter() {
@@ -236,6 +241,7 @@ impl State {
                 // rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
                 for chunk in self.world.chunks.iter() {
                     rpass.set_bind_group(1, &chunk.chunk_bind_group, &[]);
+                    rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
                     rpass.set_index_buffer(
                         chunk.chunk_index_buffer.slice(..),
                         wgpu::IndexFormat::Uint32,
@@ -248,6 +254,9 @@ impl State {
         frame.present();
     }
 }
+pub struct Config {
+    pub polygon_mode: wgpu::PolygonMode,
+}
 
 pub struct State {
     pub surface: wgpu::Surface,
@@ -255,10 +264,11 @@ pub struct State {
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    pub config: wgpu::SurfaceConfiguration,
+    pub surface_config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Pipeline>,
     pub camera: Camera,
     pub world: World,
+    pub config: Config,
     pub camera_controller: CameraController,
     // pub model: Rc<RefCell<Model>>,
 }

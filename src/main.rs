@@ -25,14 +25,15 @@ use winit::{
 #[macro_use]
 extern crate lazy_static;
 
-mod camera;
-mod cube;
-mod material;
-mod model;
-mod pipeline;
-mod state;
-mod utils;
-mod world;
+pub mod blocks;
+pub mod camera;
+pub mod cube;
+pub mod material;
+pub mod model;
+pub mod pipeline;
+pub mod state;
+pub mod utils;
+pub mod world;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
     // let model: Obj = load_obj(input).unwrap();

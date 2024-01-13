@@ -17,11 +17,7 @@ pub trait PerVertex<T: Sized> {
 
 impl VertexData {
     pub fn new(_position: [f32; 3], _normals: [f32; 3], _tex_coords: [f32; 2]) -> Self {
-        Self {
-            _position,
-            _normals,
-            _tex_coords,
-        }
+        Self { _position }
     }
     pub fn size() -> usize {
         std::mem::size_of::<Self>()
@@ -33,23 +29,11 @@ impl PerVertex<Self> for VertexData {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x3,
-                    offset: 0,
-                    shader_location: 0,
-                },
-                // wgpu::VertexAttribute {
-                //     format: wgpu::VertexFormat::Float32x3,
-                //     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                //     shader_location: 1,
-                // },
-                // wgpu::VertexAttribute {
-                //     format: wgpu::VertexFormat::Float32x2,
-                //     offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
-                //     shader_location: 2,
-                // },
-            ],
+            attributes: &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 0,
+            }],
         }
     }
 }
@@ -298,12 +282,8 @@ pub struct Model {
     pub name: String,
     pub instances: u32,
     pub instances_buffer: wgpu::Buffer, // TODO: Remove this in favor of chunks
-    // pub translation: Vec3,
-    // pub scale: Vec3,
-    // pub rotation: Quat,
     pub materials: Vec<Material>,
     pub meshes: Vec<Mesh>,
-    // pub _world_matrix: ModelMatrix,
 }
 
 #[derive(Debug)]
@@ -332,6 +312,4 @@ pub struct InstanceData {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexData {
     pub _position: [f32; 3],
-    pub _normals: [f32; 3],
-    pub _tex_coords: [f32; 2],
 }

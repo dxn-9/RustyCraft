@@ -2,9 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use bytemuck::{Pod, Zeroable};
 use obj::Vertex;
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, Face};
 
 use crate::{
+    blocks::block::Block,
     camera::Camera,
     material::{Material, Texture},
     model::{InstanceData, Mesh, Model, PerVertex, VertexData},
@@ -108,15 +109,6 @@ impl Pipeline {
             layout: &bind_group_0_layout,
             label: None,
             entries: &[
-                // wgpu::BindGroupEntry {
-                // binding: 0,
-                // bind the first, if it changes per mesh we will update the bind group later
-                // resource: state.model.borrow().meshes[0]
-                //     .world_mat_buffer
-                //     .as_ref()
-                //     .expect("Expected to have atleast 1 mesh")
-                //     .as_entire_binding(),
-                // },
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: projection_buffer.as_entire_binding(),
@@ -128,49 +120,6 @@ impl Pipeline {
             ],
         });
 
-        // let bind_group_1_layout =
-        //     state
-        //         .device
-        //         .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        //             label: Some("bind_group_1"),
-        //             entries: &[
-        //                 wgpu::BindGroupLayoutEntry {
-        //                     binding: 0,
-        //                     visibility: wgpu::ShaderStages::FRAGMENT,
-        //                     ty: wgpu::BindingType::Texture {
-        //                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
-        //                         view_dimension: wgpu::TextureViewDimension::D2,
-        //                         multisampled: false,
-        //                     },
-        //                     count: None,
-        //                 },
-        //                 wgpu::BindGroupLayoutEntry {
-        //                     binding: 1,
-        //                     visibility: wgpu::ShaderStages::FRAGMENT,
-        //                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-        //                     count: None,
-        //                 },
-        //             ],
-        //         });
-
-        // let bind_group_1 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
-        //     label: Some("bind_group_1"),
-        //     layout: &bind_group_1_layout,
-        //     entries: &[
-        //         wgpu::BindGroupEntry {
-        //             binding: 0,
-        //             resource: wgpu::BindingResource::TextureView(
-        //                 &state.model.borrow().materials[0].diffuse.view,
-        //             ),
-        //         },
-        //         wgpu::BindGroupEntry {
-        //             binding: 1,
-        //             resource: wgpu::BindingResource::Sampler(
-        //                 &state.model.borrow().materials[0].diffuse.sampler,
-        //             ),
-        //         },
-        //     ],
-        // });
         // Textures
         let depth_texture = Texture::create_depth_texture(state);
 
@@ -197,7 +146,7 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[VertexData::desc()],
+                        buffers: &[Block::get_vertex_data_layout()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -206,8 +155,8 @@ impl Pipeline {
                     }),
 
                     primitive: wgpu::PrimitiveState {
-                        polygon_mode: wgpu::PolygonMode::Line,
-
+                        polygon_mode: state.config.polygon_mode,
+                        cull_mode: Some(Face::Front),
                         ..Default::default()
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {

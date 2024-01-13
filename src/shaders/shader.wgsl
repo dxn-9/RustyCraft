@@ -3,8 +3,8 @@
 struct VertexInput {
     @builtin(vertex_index) vertex_index: u32,
     @location(0) position: vec3<f32>,
-    // @location(1) normals: vec3<f32>,
-    // @location(2) tex_coords: vec2<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) tex_coords: vec3<f32>,
     
 }
 struct InstanceInput {
@@ -28,8 +28,6 @@ struct VertexOutput {
 var<uniform> projection: mat4x4<f32>;
 @group(0) @binding(1) 
 var<uniform> view: mat4x4<f32>;
-@group(0) @binding(3)
-var <uniform> chunks_per_row: u32;
 @group(1) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
 // @group(2) @binding(1)
@@ -39,20 +37,11 @@ var <uniform> current_chunk: vec2<i32>;
 @vertex
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    // if u32(in.vertex_index) == u32(0) {
-    //     out.clip_position = vec4<f32>(0.5, 0.5, 0.5, 1.0);
-    // } else if in.vertex_index == u32(1) {
-    //     out.clip_position = vec4<f32>(0.0, 0.4, 0.5, 1.0);
-    // } else if in.vertex_index == u32(2) {
-    //     out.clip_position = vec4<f32>(0.5, 0.0, 0.5, 1.0);
-    // } else {
-    //     out.clip_position = vec4<f32>(0.5, 0.0, 0.5, 1.0);
-    // }
-
 
     let chunk_offset = vec4<f32>(f32(current_chunk.x) * 16.0, 0.0, f32(current_chunk.y) * 16.0, 0.0);
 
     out.clip_position = projection * view * (vec4<f32>(in.position.xyz, 1.0) + chunk_offset);
+    out.normals = in.normal;
 
     return out;
 }
@@ -67,12 +56,23 @@ struct FragmentInput {
         @location(0) tex_coords: vec2<f32>,
         @location(1) normals: vec3<f32>,
         @location(2) current_chunk: vec2<i32>,
-        @location(3) block_type: u32}
+        @location(3) block_type: u32
+}
 
 
 
-    @fragment
+    
+
+const light_direction = vec3<f32>(0.3, 0.7, 0.0);
+const ambient_light = 0.05;
+
+@fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    var color: vec4<f32>;
 
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    color = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    color *= dot(in.normals, light_direction);
+    color += vec4<f32>(vec3<f32>(ambient_light), 0.0);
+
+    return color;
 }

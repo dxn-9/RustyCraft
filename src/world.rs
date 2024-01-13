@@ -12,6 +12,10 @@ use wgpu::{
 };
 
 use crate::{
+    blocks::{
+        block::{Block, BlockFace, BlockVertexData, FaceDirections, CUBE_VERTEX},
+        block_type::BlockType,
+    },
     model::{InstanceData, Model},
     state::State,
 };
@@ -23,7 +27,7 @@ const NOISE_SIZE: u32 = 1024;
 const FREQUENCY: f32 = 1. / 128.;
 const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 20;
+pub const CHUNKS_PER_ROW: u32 = 9;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 type BlockMap = HashMap<i32, HashMap<i32, HashMap<i32, Rc<RefCell<Block>>>>>;
@@ -31,18 +35,6 @@ type BlockVec = Vec<Rc<RefCell<Block>>>;
 
 type VMapValue = HashMap<FaceDirections, [u32; 6]>;
 type VMap = HashMap<(u32, u32, u32), VMapValue>;
-#[rustfmt::skip]
-pub const CUBE_VERTEX: [f32; 24] = [
-    -0.5, -0.5, -0.5,
-    -0.5, 0.5, -0.5,
-    0.5, 0.5, -0.5,
-    0.5, -0.5, -0.5,
-
-    -0.5, -0.5, 0.5,
-    -0.5, 0.5, 0.5,
-    0.5, 0.5, 0.5,
-    0.5, -0.5, 0.5,
-];
 pub struct Chunk {
     // probably there needs to be a cube type with more info ( regarding type, etc. )
     pub x: i32,
@@ -54,212 +46,115 @@ pub struct Chunk {
     pub chunk_position_buffer: wgpu::Buffer,
     // pub chunk_vertex_buffer: wgpu::Buffer,
     pub chunk_index_buffer: wgpu::Buffer,
-}
-
-pub struct Block {
-    pub faces: Option<Vec<BlockFace>>,
-    pub position: glam::Vec3,
-    pub block_type: BlockType,
-}
-
-pub struct BlockFace {
-    pub face_direction: FaceDirections,
-    pub block: Rc<RefCell<Block>>,
-    pub is_visible: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum FaceDirections {
-    Front,
-    Back,
-    Left,
-    Right,
-    Top,
-    Bottom,
-}
-impl FaceDirections {
-    fn all() -> [FaceDirections; 6] {
-        [
-            FaceDirections::Back,
-            FaceDirections::Bottom,
-            FaceDirections::Top,
-            FaceDirections::Front,
-            FaceDirections::Left,
-            FaceDirections::Right,
-        ]
-    }
-    fn opposite(&self) -> FaceDirections {
-        match self {
-            FaceDirections::Back => FaceDirections::Front,
-            FaceDirections::Bottom => FaceDirections::Top,
-            FaceDirections::Top => FaceDirections::Bottom,
-            FaceDirections::Front => FaceDirections::Back,
-            FaceDirections::Left => FaceDirections::Right,
-            FaceDirections::Right => FaceDirections::Left,
-        }
-    }
-    fn get_normal_vector(&self) -> glam::Vec3 {
-        match self {
-            FaceDirections::Back => glam::vec3(0.0, 0.0, 1.0),
-            FaceDirections::Bottom => glam::vec3(0.0, -1.0, 0.0),
-            FaceDirections::Top => glam::vec3(0.0, 1.0, 0.0),
-            FaceDirections::Front => glam::vec3(0.0, 0.0, -1.0),
-            FaceDirections::Left => glam::vec3(-1.0, 0.0, 0.0),
-            FaceDirections::Right => glam::vec3(1.0, 0.0, 0.0),
-        }
-    }
-    fn get_indices(&self) -> [u32; 6] {
-        match self {
-            FaceDirections::Back => [7, 6, 5, 7, 5, 4],
-            FaceDirections::Front => [0, 1, 2, 0, 2, 3],
-            FaceDirections::Left => [4, 5, 1, 4, 1, 0],
-            FaceDirections::Right => [3, 2, 6, 3, 6, 7],
-            FaceDirections::Top => [1, 5, 6, 1, 6, 2],
-            FaceDirections::Bottom => [4, 0, 3, 4, 3, 7],
-        }
-    }
-}
-
-#[repr(u8)]
-#[derive(Clone, Copy, Debug)]
-pub enum BlockType {
-    Grass = 5,
-    Dirt = 4,
-    Water = 3,
-    Wood = 2,
-    Leaf = 1,
-    Stone = 0,
-}
-
-impl BlockType {
-    const U_STONE_THRESHOLD: u32 = 20;
-    const L_STONE_THRESHOLD: u32 = 1;
-
-    pub fn from_y_position(y: u32) -> BlockType {
-        if y > Self::U_STONE_THRESHOLD {
-            let t: f32 = random();
-            let scaler = (y as f32 - Self::U_STONE_THRESHOLD as f32) / 10.0;
-            let res = t + scaler;
-            if res > 1.0 {
-                BlockType::Stone
-            } else {
-                BlockType::Dirt
-            }
-        } else if y < Self::L_STONE_THRESHOLD {
-            BlockType::Stone
-        } else {
-            BlockType::Dirt
-        }
-    }
+    pub chunk_vertex_buffer: wgpu::Buffer,
 }
 
 pub struct World {
     pub chunks: Vec<Chunk>,
-    pub chunk_vertex_buffer: wgpu::Buffer,
     // This would translate to the for now hard coded edge vectors in the pnoise algo
-    pub vertex_map: VMap,
+    // pub vertex_map: VMap,
     pub seed: u32,
     pub noise_data: Vec<f32>,
     pub chunk_data_layout: wgpu::BindGroupLayout,
 }
 
-fn create_face_vertices(
-    indices: [u32; 6],
-    offset: &glam::Vec3,
-    vertices: &mut Vec<[f32; 3]>,
-) -> [u32; 6] {
-    let mut i = 0;
-    // There should be always 4 indices
-    let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
-    let mut indices_map: [u32; 6] = [0, 0, 0, 0, 0, 0];
+// fn create_face_vertices(
+//     indices: [u32; 6],
+//     offset: &glam::Vec3,
+//     vertices: &mut Vec<[f32; 3]>,
+// ) -> [u32; 6] {
+//     let mut i = 0;
+//     // There should be always 4 indices
+//     let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
+//     let mut indices_map: [u32; 6] = [0, 0, 0, 0, 0, 0];
 
-    for ind in indices.iter() {
-        if unique_indices.contains(ind) {
-            continue;
-        } else {
-            unique_indices.push(*ind);
-        }
-    }
-    for (i, indices_map) in indices_map.iter_mut().enumerate() {
-        let index_of = unique_indices
-            .iter()
-            .enumerate()
-            .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
-            .unwrap();
-        *indices_map = index_of as u32;
-    }
+//     for ind in indices.iter() {
+//         if unique_indices.contains(ind) {
+//             continue;
+//         } else {
+//             unique_indices.push(*ind);
+//         }
+//     }
+//     for (i, indices_map) in indices_map.iter_mut().enumerate() {
+//         let index_of = unique_indices
+//             .iter()
+//             .enumerate()
+//             .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
+//             .unwrap();
+//         *indices_map = index_of as u32;
+//     }
 
-    let mut new_vertices: Vec<_> = unique_indices
-        .iter()
-        .map(|index| {
-            [
-                CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + offset.x,
-                CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + offset.y,
-                CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + offset.z,
-            ]
-        })
-        .collect();
+//     let mut new_vertices: Vec<_> = unique_indices
+//         .iter()
+//         .map(|index| {
+//             [
+//                 CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + offset.x,
+//                 CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + offset.y,
+//                 CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + offset.z,
+//             ]
+//         })
+//         .collect();
 
-    vertices.append(&mut new_vertices);
+//     vertices.append(&mut new_vertices);
 
-    // 4 Vertices added per face
-    let vertex_offset = (vertices.len() - 4) as u32;
-    indices_map.iter_mut().for_each(|i| *i += vertex_offset);
+//     // 4 Vertices added per face
+//     let vertex_offset = (vertices.len() - 4) as u32;
+//     indices_map.iter_mut().for_each(|i| *i += vertex_offset);
 
-    indices_map
-}
+//     indices_map
+// }
 
 impl World {
     pub fn update_current_chunk_buffer(&self, chunk: &Chunk, state: &State) {
         // todo!()
     }
-    // TODO: im generating much 4x~ more vertices than needed
-    pub fn create_all_chunk_vertices() -> (Vec<[f32; 3]>, VMap) {
-        let mut v_map: VMap = HashMap::new();
-        let mut v: Vec<[f32; 3]> = vec![];
+    // // TODO: im generating much 4x~ more vertices than needed
+    // pub fn create_all_chunk_vertices() -> (Vec<[f32; 3]>, VMap) {
+    //     let mut v_map: VMap = HashMap::new();
+    //     let mut v: Vec<[f32; 3]> = vec![];
 
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                for y in 0..CHUNK_HEIGHT as u32 {
-                    // Build all y coords
+    //     for x in 0..CHUNK_SIZE {
+    //         for z in 0..CHUNK_SIZE {
+    //             for y in 0..CHUNK_HEIGHT as u32 {
+    //                 // Build all y coords
 
-                    let mut lm: VMapValue = HashMap::new();
-                    lm.insert(
-                        FaceDirections::Top,
-                        create_face_vertices(
-                            FaceDirections::Top.get_indices(),
-                            &glam::vec3(x as f32, y as f32, z as f32),
-                            &mut v,
-                        ),
-                    );
-                    lm.insert(
-                        FaceDirections::Bottom,
-                        create_face_vertices(
-                            FaceDirections::Bottom.get_indices(),
-                            &glam::vec3(x as f32, y as f32, z as f32),
-                            &mut v,
-                        ),
-                    );
+    //                 let mut lm: VMapValue = HashMap::new();
+    //                 lm.insert(
+    //                     FaceDirections::Top,
+    //                     create_face_vertices(
+    //                         FaceDirections::Top.get_indices(),
+    //                         &glam::vec3(x as f32, y as f32, z as f32),
+    //                         &mut v,
+    //                     ),
+    //                 );
+    //                 lm.insert(
+    //                     FaceDirections::Bottom,
+    //                     create_face_vertices(
+    //                         FaceDirections::Bottom.get_indices(),
+    //                         &glam::vec3(x as f32, y as f32, z as f32),
+    //                         &mut v,
+    //                     ),
+    //                 );
 
-                    // Build rest of coords
-                    let t = lm.get(&FaceDirections::Top).unwrap();
-                    let b = lm.get(&FaceDirections::Bottom).unwrap();
+    //                 // Build rest of coords
+    //                 let t = lm.get(&FaceDirections::Top).unwrap();
+    //                 let b = lm.get(&FaceDirections::Bottom).unwrap();
 
-                    let left_face = [b[0], t[1], t[0], b[0], t[0], b[1]];
-                    let right_face = [b[2], t[5], t[2], b[2], t[2], b[5]];
-                    let front_face = [b[1], t[0], t[5], b[1], t[5], b[2]];
-                    let back_face = [b[5], t[2], t[1], b[5], t[1], b[0]];
-                    lm.insert(FaceDirections::Left, left_face);
-                    lm.insert(FaceDirections::Right, right_face);
-                    lm.insert(FaceDirections::Front, front_face);
-                    lm.insert(FaceDirections::Back, back_face);
+    //                 let left_face = [b[0], t[1], t[0], b[0], t[0], b[1]];
+    //                 let right_face = [b[2], t[5], t[2], b[2], t[2], b[5]];
+    //                 let front_face = [b[1], t[0], t[5], b[1], t[5], b[2]];
+    //                 let back_face = [b[5], t[2], t[1], b[5], t[1], b[0]];
+    //                 lm.insert(FaceDirections::Left, left_face);
+    //                 lm.insert(FaceDirections::Right, right_face);
+    //                 lm.insert(FaceDirections::Front, front_face);
+    //                 lm.insert(FaceDirections::Back, back_face);
 
-                    v_map.insert((x, y, z), lm);
-                }
-            }
-        }
-        (v, v_map)
-    }
+    //                 v_map.insert((x, y, z), lm);
+    //             }
+    //         }
+    //     }
+    //     (v, v_map)
+    // }
     pub fn init_world(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let noise_data =
             crate::utils::noise::create_world_noise_data(NOISE_SIZE, NOISE_SIZE, FREQUENCY);
@@ -280,30 +175,21 @@ impl World {
             }
         }
 
-        let (all_chunk_vertices, vertex_map) = Self::create_all_chunk_vertices();
+        // let (all_chunk_vertices, vertex_map) = Self::create_all_chunk_vertices();
 
         let mut indices_added: Vec<u32> = vec![];
         for chunk in chunks.iter() {
-            indices_added.push(chunk.build_mesh(queue, &vertex_map, &chunks));
+            indices_added.push(chunk.build_mesh(queue, &chunks));
         }
         // borrow checker workaround :\
         for (i, chunk) in chunks.iter_mut().enumerate() {
             chunk.indices = indices_added[i];
         }
 
-        let chunk_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&all_chunk_vertices),
-            label: Some("chunk_vertices"),
-            usage: BufferUsages::VERTEX,
-        });
-        // chunks.push(Chunk::new(0, 1, &noise_data, device, &chunk_data_layout));
-
         Self {
             chunk_data_layout,
-            chunk_vertex_buffer,
             chunks,
             noise_data,
-            vertex_map,
             seed: 0,
         }
     }
@@ -369,71 +255,62 @@ impl Chunk {
     }
     // Returns the number of indices added to the chunk - it would've been better to be a mutable method but i can't do it because of borrow checker
     // TODO: Refactor this
-    pub fn build_mesh(
-        &self,
-        queue: &wgpu::Queue,
-        vertex_map: &VMap,
-        all_chunks: &Vec<Chunk>,
-    ) -> u32 {
+    pub fn build_mesh(&self, queue: &wgpu::Queue, all_chunks: &Vec<Chunk>) -> u32 {
+        let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
 
         for block in self.blocks.iter() {
             {
-                let mut blockbrw = block.as_ref().borrow_mut();
+                let blockbrw = block.as_ref().borrow();
                 let cube_pos = blockbrw.position.clone();
-                let faces = blockbrw.faces.as_mut().unwrap();
-                for face in faces.iter_mut() {
+                let faces = blockbrw.faces.as_ref().unwrap();
+
+                for face in faces.iter() {
+                    // Check if each face is visible and if so, add it to the mesh
+                    let mut is_visible = true;
+                    let face_chunk_pos = face.face_direction.get_normal_vector() + cube_pos;
+
+                    if Chunk::is_outside_bounds(&face_chunk_pos)
+                        || self.exists_block_at(&face_chunk_pos)
                     {
-                        let face_chunk_pos = face.face_direction.get_normal_vector() + cube_pos;
+                        is_visible = false
+                    } else {
+                        if Chunk::is_outside_chunk(&face_chunk_pos) {
+                            let target_chunk_y =
+                                self.y + (f32::floor(face_chunk_pos.z / CHUNK_SIZE as f32) as i32);
+                            let target_chunk_x =
+                                self.x + (f32::floor(face_chunk_pos.x / CHUNK_SIZE as f32) as i32);
 
-                        if Chunk::is_outside_bounds(&face_chunk_pos)
-                            || self.exists_block_at(&face_chunk_pos)
-                        {
-                            face.is_visible = false;
-                        } else {
-                            if Chunk::is_outside_chunk(&face_chunk_pos) {
-                                let target_chunk_y = self.y
-                                    + (f32::floor(face_chunk_pos.z / CHUNK_SIZE as f32) as i32);
-                                let target_chunk_x = self.x
-                                    + (f32::floor(face_chunk_pos.x / CHUNK_SIZE as f32) as i32);
-
-                                let target_chunk_block = glam::vec3(
-                                    (face_chunk_pos.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                                    face_chunk_pos.y,
-                                    (face_chunk_pos.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                                );
-                                let target_chunk = all_chunks.iter().find(|chunk| {
-                                    chunk.x == target_chunk_x && chunk.y == target_chunk_y
-                                });
-                                match target_chunk {
-                                    Some(target_chunk) => {
-                                        if target_chunk.exists_block_at(&target_chunk_block) {
-                                            face.is_visible = false
-                                        } else {
-                                            face.is_visible = true
-                                        }
+                            let target_chunk_block = glam::vec3(
+                                (face_chunk_pos.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                face_chunk_pos.y,
+                                (face_chunk_pos.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                            );
+                            let target_chunk = all_chunks.iter().find(|chunk| {
+                                chunk.x == target_chunk_x && chunk.y == target_chunk_y
+                            });
+                            match target_chunk {
+                                Some(target_chunk) => {
+                                    if target_chunk.exists_block_at(&target_chunk_block) {
+                                        is_visible = false;
                                     }
-                                    None => face.is_visible = true,
                                 }
-                            } else {
-                                face.is_visible = true;
+                                None => {}
                             }
                         }
                     }
 
-                    if face.is_visible {
-                        let ci = vertex_map
-                            .get(&(cube_pos.x as u32, cube_pos.y as u32, cube_pos.z as u32))
-                            .expect("Every cube position should be defined");
-                        let ind = ci
-                            .get(&face.face_direction)
-                            .expect("Every cube direction should be defined");
-                        indices.append(&mut ind.to_vec());
+                    if is_visible {
+                        let (mut vertex_data, mut index_data) = face.create_face_data();
+                        vertex.append(&mut vertex_data);
+                        let indices_offset = (vertex.len() - 4) as u32;
+                        indices.append(&mut index_data.iter().map(|i| i + indices_offset).collect())
                     }
                 }
             }
         }
 
+        queue.write_buffer(&self.chunk_vertex_buffer, 0, bytemuck::cast_slice(&vertex));
         queue.write_buffer(&self.chunk_index_buffer, 0, bytemuck::cast_slice(&indices));
 
         indices.len() as u32
@@ -507,6 +384,7 @@ impl Chunk {
                         faces: None,
                         position: glam::vec3(i as f32, y as f32, j as f32),
                         block_type: BlockType::Dirt,
+                        is_translucent: false,
                     }));
 
                     let face_directions = FaceDirections::all()
@@ -514,7 +392,6 @@ impl Chunk {
                         .map(|face_dir| BlockFace {
                             block: block.clone(),
                             face_direction: *face_dir,
-                            is_visible: true,
                         })
                         .collect::<Vec<_>>();
                     block.borrow_mut().faces = Some(face_directions);
@@ -524,19 +401,19 @@ impl Chunk {
         }
         let blocks_map = Self::build_blocks_map(&blocks);
 
-        // let chunk_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        //     // This is probably more than needed
-        //     size: (CHUNK_SIZE as u32 * CHUNK_SIZE as u32 * CHUNK_HEIGHT as u32) as u64 * 3,
-        //     label: Some(&format!("chunk-vertex-{x}-{y}")),
-        //     mapped_at_creation: false,
-        //     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        // });
         let chunk_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             // This is more than needed but its the number of blocks * number of indices per face * number of faces
             size: (CHUNK_SIZE as u32 * CHUNK_SIZE as u32 * CHUNK_HEIGHT as u32) as u64 * 6 * 6,
             label: Some(&format!("chunk-index-{x}-{y}")),
             mapped_at_creation: false,
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+        });
+        let chunk_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            // TODO: Calculate max possible size?
+            size: (CHUNK_SIZE as u32 * CHUNK_SIZE as u32 * CHUNK_HEIGHT as u32) as u64 * 6 * 6,
+            label: Some(&format!("chunk-index-{x}-{y}")),
+            mapped_at_creation: false,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
         let chunk_position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -558,6 +435,7 @@ impl Chunk {
             x,
             y,
             chunk_bind_group,
+            chunk_vertex_buffer,
             chunk_position_buffer,
             chunk_index_buffer,
             // chunk_vertex_buffer,

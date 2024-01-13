@@ -6,8 +6,8 @@ impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
     pub fn create_depth_texture(state: &State) -> Self {
         let size = wgpu::Extent3d {
-            width: state.config.width,
-            height: state.config.height,
+            width: state.surface_config.width,
+            height: state.surface_config.height,
             depth_or_array_layers: 1,
         };
         let desc = wgpu::TextureDescriptor {
