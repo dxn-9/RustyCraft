@@ -17,7 +17,7 @@ use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
-    event_loop::{DeviceEvents, EventLoop},
+    event_loop::EventLoop,
     keyboard::{Key, NamedKey, PhysicalKey},
     window::Window,
 };

@@ -238,9 +238,9 @@ impl State {
 
                 // for mesh in model_borrows[i].meshes.iter() {
                 rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
-                // rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
+                rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
                 for chunk in self.world.chunks.iter() {
-                    rpass.set_bind_group(1, &chunk.chunk_bind_group, &[]);
+                    rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
                     rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
                     rpass.set_index_buffer(
                         chunk.chunk_index_buffer.slice(..),

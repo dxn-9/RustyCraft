@@ -23,34 +23,34 @@ impl VertexData {
         std::mem::size_of::<Self>()
     }
 }
-impl PerVertex<Self> for VertexData {
-    // This probably should be a macro so it would be less error prone
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x3,
-                offset: 0,
-                shader_location: 0,
-            }],
-        }
-    }
-}
+// impl PerVertex<Self> for VertexData {
+// This probably should be a macro so it would be less error prone
+// fn desc() -> wgpu::VertexBufferLayout<'static> {
+//     wgpu::VertexBufferLayout {
+//         array_stride: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+//         step_mode: wgpu::VertexStepMode::Vertex,
+//         attributes: &[wgpu::VertexAttribute {
+//             format: wgpu::VertexFormat::Float32x3,
+//             offset: 0,
+//             shader_location: 0,
+//         }],
+//     }
+// }
+// }
 
-impl PerVertex<Self> for InstanceData {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: Self::size() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x3,
-                offset: 0,
-                shader_location: 2,
-            }],
-        }
-    }
-}
+// impl PerVertex<Self> for InstanceData {
+//     fn desc() -> wgpu::VertexBufferLayout<'static> {
+//         wgpu::VertexBufferLayout {
+//             array_stride: Self::size() as wgpu::BufferAddress,
+//             step_mode: wgpu::VertexStepMode::Instance,
+//             attributes: &[wgpu::VertexAttribute {
+//                 format: wgpu::VertexFormat::Float32x3,
+//                 offset: 0,
+//                 shader_location: 2,
+//             }],
+//         }
+//     }
+// }
 pub type ModelMatrix = [[f32; 4]; 4];
 
 impl Mesh {

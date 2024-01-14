@@ -51,110 +51,12 @@ pub struct Chunk {
 
 pub struct World {
     pub chunks: Vec<Chunk>,
-    // This would translate to the for now hard coded edge vectors in the pnoise algo
-    // pub vertex_map: VMap,
     pub seed: u32,
     pub noise_data: Vec<f32>,
     pub chunk_data_layout: wgpu::BindGroupLayout,
 }
 
-// fn create_face_vertices(
-//     indices: [u32; 6],
-//     offset: &glam::Vec3,
-//     vertices: &mut Vec<[f32; 3]>,
-// ) -> [u32; 6] {
-//     let mut i = 0;
-//     // There should be always 4 indices
-//     let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
-//     let mut indices_map: [u32; 6] = [0, 0, 0, 0, 0, 0];
-
-//     for ind in indices.iter() {
-//         if unique_indices.contains(ind) {
-//             continue;
-//         } else {
-//             unique_indices.push(*ind);
-//         }
-//     }
-//     for (i, indices_map) in indices_map.iter_mut().enumerate() {
-//         let index_of = unique_indices
-//             .iter()
-//             .enumerate()
-//             .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
-//             .unwrap();
-//         *indices_map = index_of as u32;
-//     }
-
-//     let mut new_vertices: Vec<_> = unique_indices
-//         .iter()
-//         .map(|index| {
-//             [
-//                 CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + offset.x,
-//                 CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + offset.y,
-//                 CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + offset.z,
-//             ]
-//         })
-//         .collect();
-
-//     vertices.append(&mut new_vertices);
-
-//     // 4 Vertices added per face
-//     let vertex_offset = (vertices.len() - 4) as u32;
-//     indices_map.iter_mut().for_each(|i| *i += vertex_offset);
-
-//     indices_map
-// }
-
 impl World {
-    pub fn update_current_chunk_buffer(&self, chunk: &Chunk, state: &State) {
-        // todo!()
-    }
-    // // TODO: im generating much 4x~ more vertices than needed
-    // pub fn create_all_chunk_vertices() -> (Vec<[f32; 3]>, VMap) {
-    //     let mut v_map: VMap = HashMap::new();
-    //     let mut v: Vec<[f32; 3]> = vec![];
-
-    //     for x in 0..CHUNK_SIZE {
-    //         for z in 0..CHUNK_SIZE {
-    //             for y in 0..CHUNK_HEIGHT as u32 {
-    //                 // Build all y coords
-
-    //                 let mut lm: VMapValue = HashMap::new();
-    //                 lm.insert(
-    //                     FaceDirections::Top,
-    //                     create_face_vertices(
-    //                         FaceDirections::Top.get_indices(),
-    //                         &glam::vec3(x as f32, y as f32, z as f32),
-    //                         &mut v,
-    //                     ),
-    //                 );
-    //                 lm.insert(
-    //                     FaceDirections::Bottom,
-    //                     create_face_vertices(
-    //                         FaceDirections::Bottom.get_indices(),
-    //                         &glam::vec3(x as f32, y as f32, z as f32),
-    //                         &mut v,
-    //                     ),
-    //                 );
-
-    //                 // Build rest of coords
-    //                 let t = lm.get(&FaceDirections::Top).unwrap();
-    //                 let b = lm.get(&FaceDirections::Bottom).unwrap();
-
-    //                 let left_face = [b[0], t[1], t[0], b[0], t[0], b[1]];
-    //                 let right_face = [b[2], t[5], t[2], b[2], t[2], b[5]];
-    //                 let front_face = [b[1], t[0], t[5], b[1], t[5], b[2]];
-    //                 let back_face = [b[5], t[2], t[1], b[5], t[1], b[0]];
-    //                 lm.insert(FaceDirections::Left, left_face);
-    //                 lm.insert(FaceDirections::Right, right_face);
-    //                 lm.insert(FaceDirections::Front, front_face);
-    //                 lm.insert(FaceDirections::Back, back_face);
-
-    //                 v_map.insert((x, y, z), lm);
-    //             }
-    //         }
-    //     }
-    //     (v, v_map)
-    // }
     pub fn init_world(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let noise_data =
             crate::utils::noise::create_world_noise_data(NOISE_SIZE, NOISE_SIZE, FREQUENCY);
@@ -318,28 +220,16 @@ impl Chunk {
     pub fn get_bind_group_layout() -> BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
             label: Some("chunk_bind_group"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-                // wgpu::BindGroupLayoutEntry {
-                //     binding: 1,
-                //     visibility: wgpu::ShaderStages::VERTEX,
-                //     ty: wgpu::BindingType::Buffer {
-                //         ty: wgpu::BufferBindingType::Storage { read_only: true },
-                //         has_dynamic_offset: false,
-                //         min_binding_size: None,
-                //     },
-                //     count: None,
-                // },
-            ],
+                count: None,
+            }],
         }
     }
     pub fn new(
@@ -375,15 +265,15 @@ impl Chunk {
                 let y_top = (f32::powf(100.0, y_top) - 1.0) as u32;
 
                 for y in 0..=y_top {
-                    let mut block_type = match BlockType::from_y_position(y) {
-                        BlockType::Dirt if y == y_top => BlockType::Grass,
+                    let block_type = match BlockType::from_y_position(y) {
+                        BlockType::Dirt(..) if y == y_top => BlockType::grass(),
                         b => b,
                     };
 
                     let block = Rc::new(RefCell::new(Block {
                         faces: None,
                         position: glam::vec3(i as f32, y as f32, j as f32),
-                        block_type: BlockType::Dirt,
+                        block_type,
                         is_translucent: false,
                     }));
 
