@@ -1,1 +1,2 @@
-# wgpu_mc_clone
+# RustyCraft
+⚒️ this project is under development ⚒️ 
