@@ -1,5 +1,7 @@
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
+use crate::world::CHUNK_SIZE;
+
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
 
@@ -12,6 +14,18 @@ impl Default for CameraController {
         Self {
             movement_vector: vec3(0.0, 0.0, 0.0),
         }
+    }
+}
+pub struct Player {
+    pub camera: Camera,
+    pub current_chunk: (i32, i32),
+}
+impl Player {
+    pub fn calc_current_chunk(&self) -> (i32, i32) {
+        (
+            f32::floor(self.camera.eye.x / CHUNK_SIZE as f32) as i32,
+            f32::floor(self.camera.eye.z / CHUNK_SIZE as f32) as i32,
+        )
     }
 }
 pub struct Camera {

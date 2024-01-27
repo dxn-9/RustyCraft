@@ -15,12 +15,15 @@ use model::VertexData;
 use state::State;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
 use winit::{
-    dpi::PhysicalPosition,
+    dpi::{PhysicalPosition, PhysicalSize},
     event::*,
     event_loop::EventLoop,
     keyboard::{Key, NamedKey, PhysicalKey},
     window::Window,
 };
+
+const DEFAULT_WINDOW_WIDTH: u32 = 1200;
+const DEFAULT_WINDOW_HEIGHT: u32 = 800;
 
 #[macro_use]
 extern crate lazy_static;
@@ -48,10 +51,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let mut state = State::new(&window).await;
     let window = &window;
-
-    window
-        .set_cursor_grab(winit::window::CursorGrabMode::Confined)
-        .unwrap();
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;
@@ -129,7 +128,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     let builder = winit::window::WindowBuilder::new();
-    let window = builder.build(&event_loop).unwrap();
+    let window = builder
+        .with_inner_size(PhysicalSize::new(
+            DEFAULT_WINDOW_WIDTH,
+            DEFAULT_WINDOW_HEIGHT,
+        ))
+        .build(&event_loop)
+        .unwrap();
 
     env_logger::init();
     pollster::block_on(run(event_loop, window))

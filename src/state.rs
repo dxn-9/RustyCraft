@@ -1,7 +1,7 @@
 use std::{cell::RefCell, f32::consts, rc::Rc};
 
 use crate::{
-    camera::{Camera, CameraController},
+    camera::{Camera, CameraController, Player},
     // cube::{build_mesh, CUBE_INDICES, CUBE_VERTEX, CUBE_VERTEX_NON_INDEXED},
     material::Texture,
     model::{InstanceData, Model},
@@ -11,7 +11,7 @@ use crate::{
 use glam::{vec2, Quat, Vec3};
 use wgpu::{util::DeviceExt, BufferUsages};
 use winit::{
-    dpi::PhysicalSize,
+    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, KeyEvent},
     keyboard::{Key, KeyCode, NamedKey, PhysicalKey, SmolStr},
     window::Window,
@@ -59,7 +59,7 @@ impl State {
 
         let camera = Camera {
             aspect_ratio: surface_config.width as f32 / surface_config.height as f32,
-            eye: glam::vec3(0.0, 0.0, -5.0),
+            eye: glam::vec3(-4.0, 0.0, 4.0),
             yaw: consts::FRAC_PI_2,
             pitch: 0.0,
 
@@ -68,17 +68,21 @@ impl State {
             zfar: 1000.,
             needs_update: false,
         };
+        let player = Player {
+            camera,
+            current_chunk: (0, 0),
+        };
 
         surface.configure(&device, &surface_config);
         let config = Config {
-            polygon_mode: wgpu::PolygonMode::Line,
+            polygon_mode: wgpu::PolygonMode::Fill,
         };
 
         let world = World::init_world(&device, &queue);
 
         let mut state = Self {
             config,
-            camera,
+            player,
             pipelines: vec![],
             surface_config,
             instance,
@@ -142,7 +146,7 @@ impl State {
         }
     }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
-        self.camera.move_target(delta)
+        self.player.camera.move_target(delta)
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -154,36 +158,23 @@ impl State {
         }
     }
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
-        // let a = Basis3::from(self.pipeline.mesh.rotation);
         let rotation_increment = Quat::from_rotation_y(0.1);
 
-        // for (i, mesh) in self.model.as_ref().borrow().meshes.iter().enumerate() {
-        // mesh.rotation * rotation_increment;
-        // self.queue.write_buffer(
-        //     self.model.as_ref().borrow().meshes[0]
-        //         .world_mat_buffer
-        //         .as_ref()
-        //         .unwrap(),
-        //     0,
-        //     bytemuck::cast_slice(&[mesh._world_matrix]),
-        // );
-        // }
-        // this is bad, it should in a uniform, but im just testing
-
         if self.camera_controller.movement_vector != Vec3::ZERO {
-            self.camera
+            self.player
+                .camera
                 .move_camera(&self.camera_controller.movement_vector, delta_time)
         }
 
-        if self.camera.needs_update {
-            let uniforms = Uniforms::from(&self.camera);
+        if self.player.camera.needs_update {
+            let uniforms = Uniforms::from(&self.player.camera);
             self.queue.write_buffer(
                 &self.pipelines[0].view_buffer,
                 0,
                 bytemuck::cast_slice(&[uniforms.view]),
             );
 
-            self.camera.needs_update = false;
+            self.player.camera.needs_update = false;
         }
     }
     pub fn draw(&mut self) {
@@ -229,14 +220,12 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            self.world.update(&mut self.player, &self.queue);
 
-            for (i, pipeline) in self.pipelines.iter().enumerate() {
-                println!("PIPELINE {}", i);
+            for pipeline in self.pipelines.iter() {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
                 rpass.set_pipeline(&pipeline.pipeline);
-                // rpass.set_vertex_buffer(1, instances_buffers[i]);
 
-                // for mesh in model_borrows[i].meshes.iter() {
                 rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
                 rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
                 for chunk in self.world.chunks.iter() {
@@ -266,7 +255,7 @@ pub struct State {
     pub queue: wgpu::Queue,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Pipeline>,
-    pub camera: Camera,
+    pub player: Player,
     pub world: World,
     pub config: Config,
     pub camera_controller: CameraController,

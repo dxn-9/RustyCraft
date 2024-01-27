@@ -46,7 +46,7 @@ impl Pipeline {
                 source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
             });
 
-        let uniforms = Uniforms::from(&state.camera);
+        let uniforms = Uniforms::from(&state.player.camera);
 
         let projection_buffer =
             state
