@@ -28,7 +28,7 @@ pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 8;
+pub const CHUNKS_PER_ROW: u32 = 16;
 
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
@@ -76,50 +76,33 @@ impl World {
             );
 
             let o = if CHUNKS_PER_ROW % 2 == 0 { 1 } else { 0 };
-            let p = (CHUNKS_PER_ROW as i32 / 2);
+            let p = CHUNKS_PER_ROW as i32 / 2;
 
-            let top_offset = p - o;
-            let bottom_offset = -p;
-            let left_offset = -p;
-            let right_offset = p - o;
+            let new_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
+                p - o
+            } else {
+                -p
+            };
+            let old_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
+                -p
+            } else {
+                p - o
+            };
 
             // Remove the chunks
             let mut old_chunks: Vec<Chunk> = vec![];
             let mut new_chunks_positions: Vec<(i32, i32)> = vec![];
 
-            let chunk_y_remove = if delta.1 > 0 {
-                player.current_chunk.1 + bottom_offset
-            } else {
-                player.current_chunk.1 + top_offset
-            };
-            let chunk_x_remove = if delta.0 > 0 {
-                player.current_chunk.0 + left_offset
-            } else {
-                player.current_chunk.0 + right_offset
-            };
-
-            if delta.0 > 0 {
-                // We moved to the right
+            let chunk_y_remove = player.current_chunk.1 + old_chunks_offset;
+            let chunk_x_remove = player.current_chunk.0 + old_chunks_offset;
+            if delta.0 != 0 {
                 for i in LB + current_chunk.1..=UB + current_chunk.1 {
-                    new_chunks_positions.push((right_offset + current_chunk.0, i));
+                    new_chunks_positions.push((current_chunk.0 + new_chunks_offset, i));
                 }
             }
-            if delta.0 < 0 {
-                // We moved to the left
-                for i in LB + current_chunk.1..=UB + current_chunk.1 {
-                    new_chunks_positions.push((left_offset + current_chunk.0, i));
-                }
-            }
-            if delta.1 > 0 {
-                // We moved vertically up
+            if delta.1 != 0 {
                 for i in LB + current_chunk.0..=UB + current_chunk.0 {
-                    new_chunks_positions.push((i, current_chunk.1 + top_offset));
-                }
-            }
-            if delta.1 < 0 {
-                // We moved vertically down
-                for i in LB + current_chunk.0..=UB + current_chunk.0 {
-                    new_chunks_positions.push((i, current_chunk.1 + bottom_offset));
+                    new_chunks_positions.push((i, current_chunk.1 + new_chunks_offset));
                 }
             }
 
