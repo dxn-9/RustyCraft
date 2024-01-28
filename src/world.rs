@@ -28,7 +28,7 @@ pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 16;
+pub const CHUNKS_PER_ROW: u32 = 3;
 
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
@@ -146,7 +146,7 @@ impl World {
             // Since the chunks at the end of the chunks vector are the new one, we will update those
             for i in 0..chunks_added {
                 let new_chunk = &self.chunks[self.chunks.len() - 1 - i as usize];
-                indices_added.push(new_chunk.build_mesh(queue, &self.chunks));
+                indices_added.push(new_chunk.build_mesh(queue, &self));
             }
             for i in 0..chunks_added {
                 let len = self.chunks.len();
@@ -170,23 +170,23 @@ impl World {
             }
         }
 
-        // let (all_chunk_vertices, vertex_map) = Self::create_all_chunk_vertices();
-
-        let mut indices_added: Vec<u32> = vec![];
-        for chunk in chunks.iter() {
-            indices_added.push(chunk.build_mesh(queue, &chunks));
-        }
-        // borrow checker workaround :\
-        for (i, chunk) in chunks.iter_mut().enumerate() {
-            chunk.indices = indices_added[i];
-        }
-
-        Self {
+        let mut world = Self {
             chunk_data_layout,
             chunks,
             noise_data,
             seed: 0,
+        };
+
+        let mut indices_added: Vec<u32> = vec![];
+        for chunk in world.chunks.iter() {
+            indices_added.push(chunk.build_mesh(queue, &world));
         }
+        // borrow checker workaround :\
+        for (i, chunk) in world.chunks.iter_mut().enumerate() {
+            chunk.indices = indices_added[i];
+        }
+
+        return world;
     }
 }
 
@@ -280,8 +280,7 @@ impl Chunk {
         }
     }
     // Returns the number of indices added to the chunk - it would've been better to be a mutable method but i can't do it because of borrow checker
-    // TODO: Refactor this
-    pub fn build_mesh(&self, queue: &wgpu::Queue, all_chunks: &Vec<Chunk>) -> u32 {
+    pub fn build_mesh(&self, queue: &wgpu::Queue, world: &World) -> u32 {
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
 
@@ -312,7 +311,7 @@ impl Chunk {
                                 face_chunk_pos.y,
                                 (face_chunk_pos.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
                             );
-                            let target_chunk = all_chunks.iter().find(|chunk| {
+                            let target_chunk = world.chunks.iter().find(|chunk| {
                                 chunk.x == target_chunk_x && chunk.y == target_chunk_y
                             });
                             match target_chunk {
@@ -321,7 +320,20 @@ impl Chunk {
                                         is_visible = false;
                                     }
                                 }
-                                None => {}
+                                None => {
+                                    let sample_x = (target_chunk_x * CHUNK_SIZE as i32)
+                                        + target_chunk_block.x as i32 % NOISE_SIZE as i32;
+                                    let sample_z = (target_chunk_y * CHUNK_SIZE as i32)
+                                        + target_chunk_block.z as i32 % NOISE_SIZE as i32;
+                                    let sample_y = target_chunk_block.y as i32;
+
+                                    is_visible = !exists_block_at(
+                                        sample_x,
+                                        sample_y,
+                                        sample_z,
+                                        &world.noise_data,
+                                    );
+                                }
                             }
                         }
                     }
@@ -362,21 +374,10 @@ impl Chunk {
 
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
-                let mut sample_x = (x * CHUNK_SIZE as i32) + i as i32 % NOISE_SIZE as i32;
-                let mut sample_y = (y * CHUNK_SIZE as i32) + j as i32 % NOISE_SIZE as i32;
-                // Wrap around if negative chunk coordinate
-                if sample_x < 0 {
-                    sample_x =
-                        NOISE_SIZE as i32 + (sample_x % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
-                }
-                if sample_y < 0 {
-                    sample_y =
-                        NOISE_SIZE as i32 + (sample_y % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
-                }
+                let sample_x = (x * CHUNK_SIZE as i32) + i as i32 % NOISE_SIZE as i32;
+                let sample_z = (y * CHUNK_SIZE as i32) + j as i32 % NOISE_SIZE as i32;
 
-                let y_top =
-                    (noise_data[((sample_y * NOISE_SIZE as i32) + sample_x) as usize] + 1.0) * 0.5;
-                let y_top = (f32::powf(100.0, y_top) - 1.0) as u32;
+                let y_top = height_from_coords(sample_x, sample_z, noise_data);
 
                 for y in 0..=y_top {
                     let block_type = match BlockType::from_y_position(y) {
@@ -459,4 +460,22 @@ impl Chunk {
             indices: 0,
         }
     }
+}
+
+pub fn exists_block_at(x: i32, y: i32, z: i32, noise_data: &Vec<f32>) -> bool {
+    let toph = height_from_coords(x, z, noise_data);
+    return y <= toph as i32;
+}
+// X and Y are absolute values, meaning they if it belongs to chunk (1, 1) it will be (16+, 16+)
+// Returns the heightmap value for a given coordinate
+pub fn height_from_coords(mut x: i32, mut z: i32, noise_data: &Vec<f32>) -> u32 {
+    if x < 0 {
+        x = NOISE_SIZE as i32 + (x % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
+    }
+    if z < 0 {
+        z = NOISE_SIZE as i32 + (z % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
+    }
+
+    let y_top = (noise_data[((z * NOISE_SIZE as i32) + x) as usize] + 1.0) * 0.5;
+    return (f32::powf(100.0, y_top) - 1.0) as u32;
 }
