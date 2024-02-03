@@ -1,4 +1,4 @@
-use std::{cell::RefCell, f32::consts, rc::Rc};
+use std::{cell::RefCell, f32::consts, rc::Rc, sync::Arc};
 
 use crate::{
     camera::{Camera, CameraController, Player},
@@ -44,6 +44,8 @@ impl State {
             .await
             .expect("Failed to create device");
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
@@ -78,7 +80,7 @@ impl State {
             polygon_mode: wgpu::PolygonMode::Fill,
         };
 
-        let world = World::init_world(&device, &queue);
+        let world = World::init_world(device.clone(), queue.clone());
 
         let mut state = Self {
             config,
@@ -251,8 +253,8 @@ pub struct State {
     pub surface: wgpu::Surface,
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Pipeline>,
     pub player: Player,

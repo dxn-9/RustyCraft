@@ -1,11 +1,15 @@
 use bytemuck::{Pod, Zeroable};
 
 use super::block_type::BlockType;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard, Weak},
+};
 
 pub struct BlockFace {
     pub face_direction: FaceDirections,
-    pub block: Rc<RefCell<Block>>,
+    pub block: Weak<Mutex<Block>>,
 }
 pub struct Block {
     pub position: glam::Vec3,
@@ -50,9 +54,11 @@ pub struct BlockVertexData {
 }
 
 impl BlockFace {
-    pub fn create_face_data(&self) -> (Vec<BlockVertexData>, Vec<u32>) {
+    pub fn create_face_data(
+        &self,
+        block: &MutexGuard<'_, Block>, // To prevent deadlocks
+    ) -> (Vec<BlockVertexData>, Vec<u32>) {
         let face_direction = self.face_direction;
-        let block = self.block.as_ref().borrow();
 
         let indices = face_direction.get_indices();
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
