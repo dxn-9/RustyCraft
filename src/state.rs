@@ -222,7 +222,11 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.world.update(&mut self.player, &self.queue);
+            self.world.update(
+                &mut self.player,
+                Arc::clone(&self.queue),
+                Arc::clone(&self.device),
+            );
 
             for pipeline in self.pipelines.iter() {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);

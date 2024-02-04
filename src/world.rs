@@ -25,6 +25,7 @@ use crate::{
     camera::{Camera, Player},
     model::{InstanceData, Model},
     state::State,
+    utils::threadpool::ThreadPool,
 };
 
 pub const CHUNK_SIZE: u32 = 16;
@@ -33,7 +34,7 @@ pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 9;
+pub const CHUNKS_PER_ROW: u32 = 15;
 
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
@@ -69,141 +70,106 @@ pub struct World {
     pub chunk_data_layout: Arc<wgpu::BindGroupLayout>,
 }
 
-struct Worker {
-    id: usize,
-    thread: thread::JoinHandle<()>,
-}
-impl Worker {
-    pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            let job = receiver.lock().unwrap().recv().unwrap();
-            println!("Worker {} got a job; executing.", id);
-            job();
-        });
-        Worker { id, thread }
-    }
-}
-pub struct ThreadPool {
-    workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>,
-}
-type Job = Box<dyn FnOnce() + Send + 'static>;
-impl ThreadPool {
-    pub fn execute<F>(&self, f: F)
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let job = Box::new(f);
-        self.sender.send(job).unwrap();
-    }
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
-
-        let (sender, receiver) = mpsc::channel();
-        let receiver = Arc::new(Mutex::new(receiver));
-
-        let mut workers = Vec::with_capacity(size);
-
-        for id in 0..size {
-            workers.push(Worker::new(id, Arc::clone(&receiver)))
-        }
-        ThreadPool { workers, sender }
-    }
-}
-
 impl World {
-    pub fn update(&mut self, player: &mut Player, queue: &wgpu::Queue) {
+    pub fn update(
+        &mut self,
+        player: &mut Player,
+        queue: Arc<wgpu::Queue>,
+        device: Arc<wgpu::Device>,
+    ) {
         // Check if the player has moved to a new chunk, if so, generate the new chunks
-        // let current_chunk = player.calc_current_chunk();
-        // if current_chunk != player.current_chunk {
-        //     // Player has moved to a new chunk, we will transfer resources from the chunks out of player's range to the new chunks
-        //     let delta = (
-        //         current_chunk.0 - player.current_chunk.0,
-        //         current_chunk.1 - player.current_chunk.1,
-        //     );
+        let current_chunk = player.calc_current_chunk();
+        if current_chunk != player.current_chunk {
+            let delta = (
+                current_chunk.0 - player.current_chunk.0,
+                current_chunk.1 - player.current_chunk.1,
+            );
 
-        //     let o = if CHUNKS_PER_ROW % 2 == 0 { 1 } else { 0 };
-        //     let p = CHUNKS_PER_ROW as i32 / 2;
+            let o = if CHUNKS_PER_ROW % 2 == 0 { 1 } else { 0 };
+            let p = CHUNKS_PER_ROW as i32 / 2;
 
-        //     let new_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
-        //         p - o
-        //     } else {
-        //         -p
-        //     };
-        //     let old_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
-        //         -p
-        //     } else {
-        //         p - o
-        //     };
+            let new_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
+                p - o
+            } else {
+                -p
+            };
+            let old_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
+                -p
+            } else {
+                p - o
+            };
 
-        //     // Remove the chunks
-        //     let mut old_chunks: Vec<Chunk> = vec![];
-        //     let mut new_chunks_positions: Vec<(i32, i32)> = vec![];
+            let mut new_chunks_positions: Vec<(i32, i32)> = vec![];
 
-        //     let chunk_y_remove = player.current_chunk.1 + old_chunks_offset;
-        //     let chunk_x_remove = player.current_chunk.0 + old_chunks_offset;
-        //     if delta.0 != 0 {
-        //         for i in LB + current_chunk.1..=UB + current_chunk.1 {
-        //             new_chunks_positions.push((current_chunk.0 + new_chunks_offset, i));
-        //         }
-        //     }
-        //     if delta.1 != 0 {
-        //         for i in LB + current_chunk.0..=UB + current_chunk.0 {
-        //             new_chunks_positions.push((i, current_chunk.1 + new_chunks_offset));
-        //         }
-        //     }
+            let chunk_y_remove = player.current_chunk.1 + old_chunks_offset;
+            let chunk_x_remove = player.current_chunk.0 + old_chunks_offset;
+            if delta.0 != 0 {
+                for i in LB + current_chunk.1..=UB + current_chunk.1 {
+                    new_chunks_positions.push((current_chunk.0 + new_chunks_offset, i));
+                }
+            }
+            if delta.1 != 0 {
+                for i in LB + current_chunk.0..=UB + current_chunk.0 {
+                    new_chunks_positions.push((i, current_chunk.1 + new_chunks_offset));
+                }
+            }
 
-        //     // Filter out the duplicate ones (in case we moved diagonally)
-        //     new_chunks_positions = new_chunks_positions
-        //         .iter()
-        //         .filter_map(|c| {
-        //             if new_chunks_positions.contains(c) {
-        //                 Some(c.clone())
-        //             } else {
-        //                 None
-        //             }
-        //         })
-        //         .collect();
+            // Filter out the duplicate ones (in case we moved diagonally)
+            new_chunks_positions = new_chunks_positions
+                .iter()
+                .filter_map(|c| {
+                    if new_chunks_positions.contains(c) {
+                        Some(c.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-        //     for i in 0..self.chunks.len() {
-        //         while let Some(chunk) = self.chunks.get(i) {
-        //             if (delta.1 != 0 && chunk.y == chunk_y_remove)
-        //                 || (delta.0 != 0 && chunk.x == chunk_x_remove)
-        //             {
-        //                 old_chunks.push(self.chunks.remove(i));
-        //             } else {
-        //                 break;
-        //             }
-        //         }
-        //     }
-        //     let chunks_added = old_chunks.len();
-        //     while let Some(chunk) = old_chunks.pop() {
-        //         let new_chunk_pos = new_chunks_positions.pop().unwrap();
-        //         // let new_chunk = Chunk::from_chunk(
-        //         //     chunk,
-        //         //     new_chunk_pos.0,
-        //         //     new_chunk_pos.1,
-        //         //     &self.noise_data,
-        //         //     queue,
-        //         // );
-        //         self.chunks.push(new_chunk);
-        //     }
+            for i in 0..self.chunks.len() {
+                while let Some(chunk) = self.chunks.get(i) {
+                    if (delta.1 != 0 && chunk.y == chunk_y_remove)
+                        || (delta.0 != 0 && chunk.x == chunk_x_remove)
+                    {
+                        self.chunks.remove(i);
+                    } else {
+                        break;
+                    }
+                }
+            }
 
-        //     let mut indices_added: Vec<u32> = vec![];
-        //     // Since the chunks at the end of the chunks vector are the new one, we will update those
-        //     for i in 0..chunks_added {
-        //         let new_chunk = &self.chunks[self.chunks.len() - 1 - i as usize];
-        //         indices_added.push(new_chunk.build_mesh(queue, &self));
-        //     }
-        //     for i in 0..chunks_added {
-        //         let len = self.chunks.len();
-        //         let new_chunk = &mut self.chunks[len - 1 - i as usize];
-        //         new_chunk.indices = indices_added[i as usize];
-        //     }
+            let chunks_added = new_chunks_positions.len();
+            let (sender, receiver) = mpsc::channel();
 
-        //     player.current_chunk = current_chunk;
+            for i in 0..new_chunks_positions.len() {
+                let new_chunk_pos = new_chunks_positions[i];
+                let sender = sender.clone();
+                let noise_data = Arc::clone(&self.noise_data);
+                let chunk_data_layout = Arc::clone(&self.chunk_data_layout);
+                let device = Arc::clone(&device);
+                let queue = Arc::clone(&queue);
+
+                self.thread_pool.execute(move || {
+                    let chunk = Chunk::new(
+                        new_chunk_pos.0,
+                        new_chunk_pos.1,
+                        noise_data,
+                        device,
+                        queue,
+                        chunk_data_layout,
+                    );
+                    sender.send(chunk).unwrap()
+                })
+            }
+
+            for _ in 0..chunks_added {
+                let chunk = receiver.recv().unwrap();
+                self.chunks.push(chunk);
+            }
+        }
+
+        player.current_chunk = current_chunk;
     }
-    // }
     pub fn init_world(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         let noise_data = Arc::new(crate::utils::noise::create_world_noise_data(
             NOISE_SIZE, NOISE_SIZE, FREQUENCY,
@@ -211,7 +177,7 @@ impl World {
         let chunk_data_layout =
             Arc::new(device.create_bind_group_layout(&Chunk::get_bind_group_layout()));
 
-        let thread_pool = ThreadPool::new(24);
+        let thread_pool = ThreadPool::new(8);
         let (sender, receiver) = mpsc::channel();
         for chunk_x in LB..=UB {
             for chunk_y in LB..=UB {
@@ -235,7 +201,6 @@ impl World {
             }
         }
 
-        thread_pool.execute(|| println!("Hello from the thread pool"));
         let mut chunks = vec![];
         for _ in 0..CHUNKS_PER_ROW * CHUNKS_PER_ROW {
             let chunk = receiver.recv().unwrap();
@@ -334,7 +299,7 @@ impl Chunk {
                         }
 
                         if is_visible {
-                            let (mut vertex_data, mut index_data) = face.create_face_data(&block);
+                            let (mut vertex_data, index_data) = face.create_face_data(&block);
                             vertex.append(&mut vertex_data);
                             let indices_offset = vertex.len() as u32 - 4;
                             indices.append(
