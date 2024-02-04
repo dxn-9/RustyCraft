@@ -10,7 +10,7 @@ use crate::{
     material::{Material, Texture},
     model::{InstanceData, Mesh, Model, PerVertex, VertexData},
     state::State,
-    world::{self, Chunk, World},
+    world::{self, World},
 };
 
 struct Matrices {

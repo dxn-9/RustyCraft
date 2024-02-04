@@ -6,7 +6,7 @@ use crate::{
     material::Texture,
     model::{InstanceData, Model},
     pipeline::{self, Pipeline, Uniforms},
-    world::World,
+    world::{World, CHUNK_SIZE},
 };
 use glam::{vec2, Quat, Vec3};
 use wgpu::{util::DeviceExt, BufferUsages};
@@ -162,10 +162,27 @@ impl State {
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
         let rotation_increment = Quat::from_rotation_y(0.1);
 
+        let mut collisions = vec![];
+        if let Some(nearby_blocks) = self.world.get_blocks_nearby(&self.player) {
+            for block in nearby_blocks.iter() {
+                let block = block.lock().unwrap();
+                let collision = crate::collision::CollisionBox::new(
+                    (self.player.current_chunk.0 as f32 * CHUNK_SIZE as f32) + block.position.x,
+                    block.position.y,
+                    (self.player.current_chunk.1 as f32 * CHUNK_SIZE as f32) + block.position.z,
+                    1.0,
+                    1.0,
+                    1.0,
+                );
+                collisions.push(collision);
+            }
+        };
         if self.camera_controller.movement_vector != Vec3::ZERO {
-            self.player
-                .camera
-                .move_camera(&self.camera_controller.movement_vector, delta_time)
+            self.player.move_camera(
+                &self.camera_controller.movement_vector,
+                delta_time,
+                &collisions,
+            )
         }
 
         if self.player.camera.needs_update {
@@ -178,6 +195,12 @@ impl State {
 
             self.player.camera.needs_update = false;
         }
+
+        self.world.update(
+            &mut self.player,
+            Arc::clone(&self.queue),
+            Arc::clone(&self.device),
+        );
     }
     pub fn draw(&mut self) {
         let frame = self
@@ -222,11 +245,6 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.world.update(
-                &mut self.player,
-                Arc::clone(&self.queue),
-                Arc::clone(&self.device),
-            );
 
             for pipeline in self.pipelines.iter() {
                 // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
