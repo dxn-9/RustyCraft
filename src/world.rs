@@ -53,25 +53,29 @@ impl World {
             ((f32::floor(position.x) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32;
         let z =
             ((f32::floor(position.z) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32;
-        let relative_position = glam::vec3(x, position.y, z);
+        let relative_position = glam::vec3(x, f32::max(f32::floor(position.y), 0.0), z);
         let block = chunk.get_block_at_relative(&relative_position)?;
-        println!(
-            "found block {:?} {} {} {:?}, {:?}  f {x} {z}",
-            relative_position,
-            chunk_x,
-            chunk_y,
-            block.lock().unwrap().position,
-            position
-        );
         return Some(block);
     }
     pub fn get_blocks_nearby(&self, player: &Player) -> Option<Vec<Arc<Mutex<Block>>>> {
+        let mut positions = vec![];
         let mut nearby_blocks = vec![];
+        let offset_vec = glam::vec3(0.4, 0.0, 0.4);
 
-        let below_player = player.camera.eye + glam::vec3(0.0, -1.0, 0.0);
-        let block = self.get_blocks_absolute(&below_player)?;
-
-        nearby_blocks.push(Arc::clone(&block));
+        for i in -2..=2 {
+            for j in -2..=2 {
+                for h in -2..=2 {
+                    positions.push(
+                        player.camera.eye + offset_vec + glam::vec3(i as f32, h as f32, j as f32),
+                    );
+                }
+            }
+        }
+        for position in positions.iter() {
+            if let Some(block) = self.get_blocks_absolute(position) {
+                nearby_blocks.push(block)
+            };
+        }
 
         return Some(nearby_blocks);
     }

@@ -32,7 +32,6 @@ pub mod blocks;
 pub mod camera;
 pub mod chunk;
 pub mod collision;
-pub mod cube;
 pub mod material;
 pub mod model;
 pub mod pipeline;

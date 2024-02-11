@@ -1,11 +1,11 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CollisionBox {
-    min_x: f32,
-    max_x: f32,
-    min_y: f32,
-    max_y: f32,
-    min_z: f32,
-    max_z: f32,
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_y: f32,
+    pub max_y: f32,
+    pub min_z: f32,
+    pub max_z: f32,
 }
 
 impl CollisionBox {
@@ -23,24 +23,24 @@ impl CollisionBox {
         if self.intersects(other) {
             let mut collision_dir = (0.0, 0.0, 0.0);
 
-            if self.max_x >= other.min_x && self.min_x < other.min_x {
-                collision_dir.0 = self.max_x - other.min_x;
-            }
-            if self.min_x <= other.max_x && self.max_x > other.max_x {
-                collision_dir.0 = self.min_x - other.max_x;
-            }
-            if self.max_y >= other.min_y && self.min_y < other.min_y {
-                collision_dir.1 = self.max_y - other.min_y;
-            }
-            if self.min_y <= other.max_y && self.max_y > other.max_y {
-                collision_dir.1 = self.min_y - other.max_y;
-            }
-            if self.max_z >= other.min_z && self.min_z > other.min_z {
-                collision_dir.2 = self.max_z - other.min_z;
-            }
-            if self.min_z <= other.max_z && self.max_z > other.max_z {
-                collision_dir.2 = self.min_z - other.max_z;
-            }
+            // if self.max_x >= other.min_x && self.min_x < other.min_x {
+            //     collision_dir.0 = self.max_x - other.min_x;
+            // }
+            // if self.min_x <= other.max_x && self.max_x > other.max_x {
+            //     collision_dir.0 = self.min_x - other.max_x;
+            // }
+            // if self.max_y >= other.min_y && self.min_y < other.min_y {
+            //     collision_dir.1 = 1.0;
+            // }
+            // if self.min_y <= other.max_y && self.max_y > other.max_y {
+            //     collision_dir.1 = -1.0;
+            // }
+            // if self.max_z >= other.min_z && self.min_z > other.min_z {
+            //     collision_dir.2 = self.max_z - other.min_z;
+            // }
+            // if self.min_z <= other.max_z && self.max_z > other.max_z {
+            //     collision_dir.2 = self.min_z - other.max_z;
+            // }
 
             return Some(collision_dir);
         } else {
@@ -57,5 +57,20 @@ impl CollisionBox {
     }
     pub fn intersects_direction() {
         todo!()
+    }
+}
+
+impl std::ops::Add<glam::Vec3> for CollisionBox {
+    type Output = CollisionBox;
+
+    fn add(self, rhs: glam::Vec3) -> Self::Output {
+        CollisionBox::new(
+            self.min_x + rhs.x,
+            self.min_y + rhs.y,
+            self.min_z + rhs.z,
+            self.max_x - self.min_x,
+            self.max_y - self.min_y,
+            self.max_z - self.min_z,
+        )
     }
 }

@@ -1,9 +1,13 @@
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
-use crate::{collision::CollisionBox, world::CHUNK_SIZE};
+use crate::{
+    collision::CollisionBox,
+    world::{World, CHUNK_SIZE},
+};
 
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
+const GRAVITY: f32 = 0.2;
 
 pub struct CameraController {
     pub movement_vector: Vec3,
@@ -33,7 +37,7 @@ impl Player {
     pub fn get_collision(&self) -> crate::collision::CollisionBox {
         crate::collision::CollisionBox::new(
             self.camera.eye.x - 0.4,
-            self.camera.eye.y - 0.4,
+            self.camera.eye.y - 1.0,
             self.camera.eye.z - 0.4,
             0.8,
             2.0,
@@ -47,67 +51,64 @@ impl Player {
         )
     }
 
+    /* TODO: This probably can be optimized */
     pub fn move_camera(
         &mut self,
         direction: &Vec3,
         delta_time: f32,
         collisions: &Vec<CollisionBox>,
     ) {
-        let mut direction = direction.clone();
+        let input_direction = direction;
         let player_collision = self.get_collision();
-        if let Some(collision) = collisions.first() {
-            println!(
-                "PLAYER POSITION: {:?} COLLISION POSITION {:?} ",
-                player_collision, collision
-            );
-
-            if let Some(collision) = player_collision.intersects_dir(collision) {
-                println!("COLLISION {:?}\n", collision);
-                if collision.0 < 0.0 && direction.x < 0.0 {
-                    direction.x = 0.0;
-                }
-                if collision.0 > 0.0 && direction.x > 0.0 {
-                    direction.x = 0.0;
-                }
-                if collision.1 < 0.0 && direction.y < 0.0 {
-                    direction.y = 0.0;
-                }
-                if collision.1 > 0.0 && direction.y > 0.0 {
-                    direction.y = 0.0;
-                }
-                if collision.2 < 0.0 && direction.z < 0.0 {
-                    direction.z = 0.0;
-                }
-                if collision.2 > 0.0 && direction.z > 0.0 {
-                    direction.z = 0.0;
-                }
-            };
-        };
 
         let forward = self.camera.calc_target();
 
+        let mut velocity = vec3(0.0, 0.0, 0.0);
+
         // z axis
-        if direction.z > 0.0 {
-            self.camera.eye += forward * CAMERA_SPEED * delta_time;
-        } else if direction.z < 0.0 {
-            self.camera.eye -= forward * CAMERA_SPEED * delta_time;
+        if input_direction.z > 0.0 {
+            velocity += forward * CAMERA_SPEED * delta_time;
+        } else if input_direction.z < 0.0 {
+            velocity -= forward * CAMERA_SPEED * delta_time;
         }
 
         let right = Vec3::cross(forward, Vec3::Y);
 
-        if direction.x > 0.0 {
-            self.camera.eye -= right * CAMERA_SPEED * delta_time;
-        } else if direction.x < 0.0 {
-            self.camera.eye += right * CAMERA_SPEED * delta_time;
+        if input_direction.x > 0.0 {
+            velocity -= right * CAMERA_SPEED * delta_time;
+        } else if input_direction.x < 0.0 {
+            velocity += right * CAMERA_SPEED * delta_time;
         }
 
-        let up = Vec3::cross(right, forward);
-
-        if direction.y > 0.0 {
-            self.camera.eye += up * CAMERA_SPEED * delta_time;
-        } else if direction.y < 0.0 {
-            self.camera.eye -= up * CAMERA_SPEED * delta_time;
+        let can_move_z = player_collision.clone() + glam::vec3(0.0, 0.0, velocity.z);
+        for collision in collisions.iter() {
+            if can_move_z.intersects(collision) {
+                velocity.z = 0.0;
+            }
         }
+        let can_move_x = player_collision.clone() + glam::vec3(velocity.x, 0.0, 0.0);
+        for collision in collisions.iter() {
+            if can_move_x.intersects(collision) {
+                velocity.x = 0.0;
+            }
+        }
+
+        velocity.y -= GRAVITY;
+        let can_move_y = player_collision.clone() + glam::vec3(0.0, velocity.y, 0.0);
+
+        for collision in collisions.iter() {
+            if can_move_y.intersects(collision) {
+                velocity.y = 0.0;
+            }
+        }
+
+        // fly up
+        if input_direction.y > 0.0 {
+            velocity.y = 2.0;
+        }
+
+        self.camera.eye += velocity;
+
         self.camera.needs_update = true;
     }
 }

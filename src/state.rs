@@ -61,7 +61,7 @@ impl State {
 
         let camera = Camera {
             aspect_ratio: surface_config.width as f32 / surface_config.height as f32,
-            eye: glam::vec3(-4.0, 0.0, 4.0),
+            eye: glam::vec3(-4.0, 50.0, 4.0),
             yaw: consts::FRAC_PI_2,
             pitch: 0.0,
 
@@ -167,9 +167,9 @@ impl State {
             for block in nearby_blocks.iter() {
                 let block = block.lock().unwrap();
                 let collision = crate::collision::CollisionBox::new(
-                    (self.player.current_chunk.0 as f32 * CHUNK_SIZE as f32) + block.position.x,
+                    block.absolute_position.x,
                     block.position.y,
-                    (self.player.current_chunk.1 as f32 * CHUNK_SIZE as f32) + block.position.z,
+                    block.absolute_position.z,
                     1.0,
                     1.0,
                     1.0,
@@ -177,24 +177,18 @@ impl State {
                 collisions.push(collision);
             }
         };
-        if self.camera_controller.movement_vector != Vec3::ZERO {
-            self.player.move_camera(
-                &self.camera_controller.movement_vector,
-                delta_time,
-                &collisions,
-            )
-        }
+        self.player.move_camera(
+            &self.camera_controller.movement_vector,
+            delta_time,
+            &collisions,
+        );
 
-        if self.player.camera.needs_update {
-            let uniforms = Uniforms::from(&self.player.camera);
-            self.queue.write_buffer(
-                &self.pipelines[0].view_buffer,
-                0,
-                bytemuck::cast_slice(&[uniforms.view]),
-            );
-
-            self.player.camera.needs_update = false;
-        }
+        let uniforms = Uniforms::from(&self.player.camera);
+        self.queue.write_buffer(
+            &self.pipelines[0].view_buffer,
+            0,
+            bytemuck::cast_slice(&[uniforms.view]),
+        );
 
         self.world.update(
             &mut self.player,

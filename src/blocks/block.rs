@@ -13,6 +13,7 @@ pub struct BlockFace {
 }
 pub struct Block {
     pub position: glam::Vec3,
+    pub absolute_position: glam::Vec3,
     pub faces: Option<Vec<BlockFace>>,
     pub block_type: BlockType,
     pub is_translucent: bool,

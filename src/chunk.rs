@@ -204,6 +204,11 @@ impl Chunk {
                     let block = Arc::new(Mutex::new(Block {
                         faces: None,
                         position: glam::vec3(x as f32, y as f32, z as f32),
+                        absolute_position: glam::vec3(
+                            (chunk_x * CHUNK_SIZE as i32 + x as i32) as f32,
+                            y as f32,
+                            (chunk_y * CHUNK_SIZE as i32 + z as i32) as f32,
+                        ),
                         block_type,
                         is_translucent: false,
                     }));
