@@ -73,6 +73,9 @@ impl State {
         let player = Player {
             camera,
             current_chunk: (0, 0),
+            is_jumping: false,
+            on_ground: false,
+            jump_action_start: None,
         };
 
         surface.configure(&device, &surface_config);
@@ -130,6 +133,16 @@ impl State {
                 physical_key: PhysicalKey::Code(KeyCode::KeyQ),
                 ..
             } => self.camera_controller.movement_vector.y = -1.0 * is_pressed,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::Space),
+                state: winit::event::ElementState::Pressed,
+                ..
+            } => {
+                if self.player.on_ground {
+                    self.player.is_jumping = true;
+                    self.player.jump_action_start = Some(std::time::Instant::now());
+                }
+            }
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyF),
                 state: winit::event::ElementState::Pressed,

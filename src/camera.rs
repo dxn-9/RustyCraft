@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
 use crate::{
@@ -7,7 +9,11 @@ use crate::{
 
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
-const GRAVITY: f32 = 0.2;
+const GRAVITY: f32 = 10.0;
+lazy_static! {
+    static ref JUMP_DURATION: Duration = Duration::from_secs_f32(0.1);
+}
+const JUMP_HEIGHT: f32 = 1.5;
 
 pub struct CameraController {
     pub movement_vector: Vec3,
@@ -23,6 +29,9 @@ impl Default for CameraController {
 pub struct Player {
     pub camera: Camera,
     pub current_chunk: (i32, i32),
+    pub on_ground: bool,
+    pub is_jumping: bool,
+    pub jump_action_start: Option<Instant>,
 }
 impl Player {
     // Position relative to the chunk
@@ -93,12 +102,28 @@ impl Player {
             }
         }
 
-        velocity.y -= GRAVITY;
-        let can_move_y = player_collision.clone() + glam::vec3(0.0, velocity.y, 0.0);
+        velocity.y -= GRAVITY * delta_time;
+        self.on_ground = false;
 
+        if self.is_jumping {
+            let now = Instant::now();
+            let delta_jump = now
+                - self
+                    .jump_action_start
+                    .expect("If it's jumping this should be set");
+            if delta_jump <= *JUMP_DURATION {
+                velocity.y = JUMP_HEIGHT * delta_time * 10.0; /* Multiply by 10 bcs animation time is 0.1  */
+            } else {
+                self.is_jumping = false;
+                self.jump_action_start = None;
+            }
+        }
+
+        let can_move_y = player_collision.clone() + glam::vec3(0.0, velocity.y, 0.0);
         for collision in collisions.iter() {
             if can_move_y.intersects(collision) {
                 velocity.y = 0.0;
+                self.on_ground = true; // This can make it infinite to jump if there is a block above
             }
         }
 
