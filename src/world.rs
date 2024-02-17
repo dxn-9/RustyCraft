@@ -23,6 +23,7 @@ pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 
 // Lower bound of chunk
 pub const LB: i32 = -((CHUNKS_PER_ROW / 2) as i32);
+
 // Upper boound of chunk
 pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
     (CHUNKS_PER_ROW / 2 - 1) as i32
@@ -71,6 +72,7 @@ impl World {
                 }
             }
         }
+
         for position in positions.iter() {
             if let Some(block) = self.get_blocks_absolute(position) {
                 nearby_blocks.push(block)

@@ -32,10 +32,12 @@ pub struct Player {
     pub on_ground: bool,
     pub is_jumping: bool,
     pub jump_action_start: Option<Instant>,
+    pub is_ghost: bool,
 }
 impl Player {
     // Position relative to the chunk
     pub fn to_relative_position(&self) -> glam::Vec3 {
+        
         todo!();
         // glam::vec3(
         //     f32::abs(self.camera.eye.x + (CHUNK_SIZE as f32 - 1.0) % CHUNK_SIZE as f32),
@@ -87,6 +89,13 @@ impl Player {
             velocity -= right * CAMERA_SPEED * delta_time;
         } else if input_direction.x < 0.0 {
             velocity += right * CAMERA_SPEED * delta_time;
+        }
+
+        /* Ignore collisions if ghost */
+        if self.is_ghost {
+            velocity *= 4.0;
+            self.camera.eye += velocity;
+            return;
         }
 
         let can_move_z = player_collision.clone() + glam::vec3(0.0, 0.0, velocity.z);

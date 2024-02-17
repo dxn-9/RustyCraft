@@ -1,12 +1,13 @@
 use std::{cell::RefCell, f32::consts, rc::Rc, sync::Arc};
 
+use crate::pipeline::PipelineType;
+use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::{
     camera::{Camera, CameraController, Player},
-    // cube::{build_mesh, CUBE_INDICES, CUBE_VERTEX, CUBE_VERTEX_NON_INDEXED},
     material::Texture,
-    model::{InstanceData, Model},
-    pipeline::{self, Pipeline, Uniforms},
-    world::{World, CHUNK_SIZE},
+    pipeline::{self, Uniforms},
+    ui::{UIPipeline, UI},
+    world::World,
 };
 use glam::{vec2, Quat, Vec3};
 use wgpu::{util::DeviceExt, BufferUsages};
@@ -76,6 +77,7 @@ impl State {
             is_jumping: false,
             on_ground: false,
             jump_action_start: None,
+            is_ghost: false,
         };
 
         surface.configure(&device, &surface_config);
@@ -84,10 +86,12 @@ impl State {
         };
 
         let world = World::init_world(device.clone(), queue.clone());
+        let ui = UI::new(device.clone(), queue.clone());
 
         let mut state = Self {
             config,
             player,
+            ui,
             pipelines: vec![],
             surface_config,
             instance,
@@ -99,9 +103,11 @@ impl State {
             camera_controller: CameraController::default(),
         };
 
-        let pipeline = Pipeline::new(&state);
+        let world_pipeline = Box::new(Pipeline::new(&state));
+        let ui_pipeline = Box::new(UIPipeline::new(&state));
 
-        state.pipelines.push(pipeline);
+        state.pipelines.push(world_pipeline);
+        state.pipelines.push(ui_pipeline);
 
         state
     }
@@ -144,6 +150,13 @@ impl State {
                 }
             }
             KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyG),
+                state: winit::event::ElementState::Pressed,
+                ..
+            } => {
+                self.player.is_ghost = !self.player.is_ghost;
+            }
+            KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyF),
                 state: winit::event::ElementState::Pressed,
                 ..
@@ -154,8 +167,8 @@ impl State {
                     self.config.polygon_mode = wgpu::PolygonMode::Line
                 }
 
-                self.pipelines.pop();
-                self.pipelines.push(Pipeline::new(&self))
+                // self.pipelines.pop();
+                // self.pipelines.push(Box::new(Pipeline::new(&self)))
             }
             _ => {}
         }
@@ -169,12 +182,11 @@ impl State {
             self.surface_config.width = new_size.width.max(1);
             self.surface_config.height = new_size.height.max(1);
             self.surface.configure(&self.device, &self.surface_config);
-            self.pipelines[0].depth_texture = Texture::create_depth_texture(&self);
+            let new_depth = Texture::create_depth_texture(&self);
+            self.pipelines[0].set_depth_texture(new_depth);
         }
     }
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
-        let rotation_increment = Quat::from_rotation_y(0.1);
-
         let mut collisions = vec![];
         if let Some(nearby_blocks) = self.world.get_blocks_nearby(&self.player) {
             for block in nearby_blocks.iter() {
@@ -197,11 +209,14 @@ impl State {
         );
 
         let uniforms = Uniforms::from(&self.player.camera);
-        self.queue.write_buffer(
-            &self.pipelines[0].view_buffer,
-            0,
-            bytemuck::cast_slice(&[uniforms.view]),
-        );
+
+        for pipeline in self.pipelines.iter() {
+            self.queue.write_buffer(
+                pipeline.view_buffer(),
+                0,
+                bytemuck::cast_slice(&[uniforms.view]),
+            )
+        }
 
         self.world.update(
             &mut self.player,
@@ -214,7 +229,6 @@ impl State {
             .surface
             .get_current_texture()
             .expect("Failed to acquire next swapchain texture");
-        // ?
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -242,7 +256,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.pipelines[0].depth_texture.view,
+                    view: &self.pipelines[0].depth_texture().view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -252,24 +266,33 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            let pipeline = &self.pipelines[0];
 
-            for pipeline in self.pipelines.iter() {
-                // let instances_buffer = pipeline.model.as_ref().borrow().instances_buffer.slice(..);
-                rpass.set_pipeline(&pipeline.pipeline);
+            rpass.set_pipeline(pipeline.pipeline());
 
-                rpass.set_bind_group(0, &pipeline.bind_group_0, &[]);
-                rpass.set_bind_group(1, &pipeline.bind_group_1, &[]);
-                for chunk in self.world.chunks.iter() {
-                    rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                    rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
-                    rpass.set_index_buffer(
-                        chunk.chunk_index_buffer.slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    rpass.draw_indexed(0..chunk.indices, 0, 0..1);
-                }
+            rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
+            rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+
+            for chunk in self.world.chunks.iter() {
+                rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
+                rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
+                rpass.set_index_buffer(
+                    chunk.chunk_index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                rpass.draw_indexed(0..chunk.indices, 0, 0..1);
             }
+
+            let pipeline = &self.pipelines[1];
+            rpass.set_pipeline(pipeline.pipeline());
+
+            rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
+            rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+
+            rpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
+            rpass.draw(0..6, 0..1);
         }
+
         self.queue.submit(Some(encoder.finish()));
         frame.present();
     }
@@ -285,9 +308,10 @@ pub struct State {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     pub surface_config: wgpu::SurfaceConfiguration,
-    pub pipelines: Vec<Pipeline>,
+    pub pipelines: Vec<Box<dyn PipelineTrait>>,
     pub player: Player,
     pub world: World,
+    pub ui: UI,
     pub config: Config,
     pub camera_controller: CameraController,
     // pub model: Rc<RefCell<Model>>,

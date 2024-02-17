@@ -1,45 +1,64 @@
-use std::fs::File;
-use std::io::Read;
-use std::{cell::RefCell, rc::Rc};
+use crate::blocks::block::{Block, BlockVertexData};
+use crate::material::Texture;
+use crate::pipeline::{Pipeline, PipelineTrait, PipelineType, Uniforms};
+use crate::state::State;
+use std::sync::Arc;
+use wgpu::util::DeviceExt;
+use wgpu::{BindGroup, Buffer, RenderPipeline};
 
-use bytemuck::{Pod, Zeroable};
-use obj::Vertex;
-use wgpu::{include_wgsl, util::DeviceExt, BindGroup, Buffer, Face, RenderPipeline};
-
-use crate::{
-    blocks::block::Block,
-    camera::Camera,
-    material::{Material, Texture},
-    state::State,
-};
-
-struct Matrices {
-    view: glam::Mat4,
-    projection: glam::Mat4,
+pub struct UI {
+    pub vertex_buffer: wgpu::Buffer,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Pod, Zeroable)]
-pub struct Uniforms {
-    pub view: [f32; 16],
-    pub projection: [f32; 16],
-}
+impl UI {
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+        let vertices: [[f32; 3]; 6] = [
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+        ];
 
-impl From<&Camera> for Uniforms {
-    fn from(camera: &Camera) -> Self {
-        Self {
-            view: *camera.build_view_matrix().as_ref(),
-            projection: *camera.build_projection_matrix().as_ref(),
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Vertex Buffer"),
+            usage: wgpu::BufferUsages::VERTEX,
+            contents: bytemuck::cast_slice(&vertices),
+        });
+
+        Self { vertex_buffer }
+    }
+
+    pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // Position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+            ],
         }
     }
 }
-
-impl Pipeline {
+pub struct UIPipeline {
+    pub projection_buffer: wgpu::Buffer,
+    pub view_buffer: wgpu::Buffer,
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_0: wgpu::BindGroup,
+    pub bind_group_1: wgpu::BindGroup,
+    pub pipeline_type: PipelineType,
+}
+impl UIPipeline {
     pub fn new(state: &State) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let shader_source = std::fs::read_to_string("src/shaders/shader.wgsl").unwrap();
+        let shader_source = std::fs::read_to_string("src/shaders/ui_shader.wgsl").unwrap();
 
         let shader = state
             .device
@@ -160,20 +179,13 @@ impl Pipeline {
             ],
         });
 
-        // Textures
-        let depth_texture = Texture::create_depth_texture(state);
-
         // Pipeline layouts
         let pipeline_layout =
             state
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[
-                        &bind_group_0_layout,
-                        &bind_group_1_layout,
-                        &state.world.chunk_data_layout,
-                    ],
+                    bind_group_layouts: &[&bind_group_0_layout, &bind_group_1_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -186,7 +198,7 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[Block::get_vertex_data_layout()],
+                        buffers: &[UI::get_vertex_data_layout()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -196,7 +208,7 @@ impl Pipeline {
 
                     primitive: wgpu::PrimitiveState {
                         polygon_mode: state.config.polygon_mode,
-                        cull_mode: Some(Face::Front),
+                        cull_mode: None,
                         ..Default::default()
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
@@ -213,15 +225,14 @@ impl Pipeline {
         Self {
             view_buffer,
             projection_buffer,
-            pipeline_type: PipelineType::WORLD,
-            depth_texture,
+            pipeline_type: PipelineType::UI,
             bind_group_0,
             bind_group_1,
             pipeline: render_pipeline,
         }
     }
 }
-impl PipelineTrait for Pipeline {
+impl PipelineTrait for UIPipeline {
     fn projection_buffer(&self) -> &Buffer {
         &self.projection_buffer
     }
@@ -234,12 +245,6 @@ impl PipelineTrait for Pipeline {
         &self.view_buffer
     }
 
-    fn depth_texture(&self) -> &Texture {
-        &self.depth_texture
-    }
-    fn set_depth_texture(&mut self, texture: Texture) {
-        self.depth_texture = texture;
-    }
     fn bind_group_0(&self) -> &BindGroup {
         &self.bind_group_0
     }
@@ -247,34 +252,16 @@ impl PipelineTrait for Pipeline {
     fn bind_group_1(&self) -> &BindGroup {
         &self.bind_group_1
     }
+
+    fn depth_texture(&self) -> &Texture {
+        todo!()
+    }
+
+    fn set_depth_texture(&mut self, texture: Texture) {
+        todo!()
+    }
+
     fn get_type(&self) -> PipelineType {
         self.pipeline_type
     }
-}
-
-pub trait PipelineTrait {
-    fn projection_buffer(&self) -> &wgpu::Buffer;
-    fn pipeline(&self) -> &wgpu::RenderPipeline;
-    fn view_buffer(&self) -> &wgpu::Buffer;
-    fn bind_group_0(&self) -> &wgpu::BindGroup;
-    fn bind_group_1(&self) -> &wgpu::BindGroup;
-    fn depth_texture(&self) -> &Texture;
-    fn set_depth_texture(&mut self, texture: Texture);
-
-    fn get_type(&self) -> PipelineType;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PipelineType {
-    WORLD,
-    UI,
-}
-pub struct Pipeline {
-    pub projection_buffer: wgpu::Buffer,
-    pub view_buffer: wgpu::Buffer,
-    pub pipeline: wgpu::RenderPipeline,
-    pub bind_group_0: wgpu::BindGroup,
-    pub bind_group_1: wgpu::BindGroup,
-    pub depth_texture: Texture,
-    pub pipeline_type: PipelineType,
 }

@@ -22,16 +22,12 @@ struct VertexOutput {
 }
 
 
-// @group(0) @binding(0) 
-// var<uniform> transform: mat4x4<f32>;
-@group(0) @binding(0) 
+@group(0) @binding(0)
 var<uniform> projection: mat4x4<f32>;
 @group(0) @binding(1) 
 var<uniform> view: mat4x4<f32>;
 @group(2) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
-// @group(2) @binding(1)
-// var <storage, read> chunk_data: vec4<u32>;
 
 
 @vertex
@@ -59,10 +55,6 @@ struct FragmentInput {
         @location(2) current_chunk: vec2<i32>,
         @location(3) block_type: u32
 }
-
-
-
-    
 
 const light_direction = vec3<f32>(0.25, 1.0, -0.5);
 const ambient_light = 0.005;

@@ -38,6 +38,7 @@ pub mod pipeline;
 pub mod state;
 pub mod utils;
 pub mod world;
+pub mod ui;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
     // let model: Obj = load_obj(input).unwrap();

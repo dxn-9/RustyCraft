@@ -62,8 +62,11 @@ impl BlockFace {
         let face_direction = self.face_direction;
 
         let indices = face_direction.get_indices();
+
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
+
         let mut vertex_data: Vec<BlockVertexData> = Vec::with_capacity(4);
+
         let mut indices_map: Vec<u32> = vec![0; 6];
 
         for ind in indices.iter() {
