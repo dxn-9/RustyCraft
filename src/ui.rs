@@ -203,12 +203,17 @@ impl UIPipeline {
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fs_main",
-                        targets: &[Some(swapchain_format.into())],
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: swapchain_format,
+                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
                     }),
 
                     primitive: wgpu::PrimitiveState {
                         polygon_mode: state.config.polygon_mode,
                         cull_mode: None,
+
                         ..Default::default()
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
@@ -219,6 +224,7 @@ impl UIPipeline {
                         bias: wgpu::DepthBiasState::default(),
                     }),
                     multisample: wgpu::MultisampleState::default(),
+
                     multiview: None,
                 });
 
