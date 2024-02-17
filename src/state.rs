@@ -1,11 +1,12 @@
 use std::{cell::RefCell, f32::consts, rc::Rc, sync::Arc};
 
+use crate::collision::CollisionBox;
 use crate::pipeline::PipelineType;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::{
-    camera::{Camera, CameraController, Player},
     material::Texture,
     pipeline::{self, Uniforms},
+    player::{Camera, CameraController, Player},
     ui::{UIPipeline, UI},
     world::World,
 };
@@ -76,6 +77,7 @@ impl State {
             current_chunk: (0, 0),
             is_jumping: false,
             on_ground: false,
+            facing_block: None,
             jump_action_start: None,
             is_ghost: false,
         };
@@ -191,13 +193,10 @@ impl State {
         if let Some(nearby_blocks) = self.world.get_blocks_nearby(&self.player) {
             for block in nearby_blocks.iter() {
                 let block = block.lock().unwrap();
-                let collision = crate::collision::CollisionBox::new(
+                let collision = CollisionBox::from_block_position(
                     block.absolute_position.x,
                     block.position.y,
                     block.absolute_position.z,
-                    1.0,
-                    1.0,
-                    1.0,
                 );
                 collisions.push(collision);
             }
@@ -207,6 +206,10 @@ impl State {
             delta_time,
             &collisions,
         );
+        if let Some(block) = self.player.get_facing_block(&collisions) {
+            let block = self.world.get_blocks_absolute(&block.to_block_position());
+            self.player.facing_block = block;
+        }
 
         let uniforms = Uniforms::from(&self.player.camera);
 
@@ -219,6 +222,11 @@ impl State {
         }
 
         self.world.update(
+            &mut self.player,
+            Arc::clone(&self.queue),
+            Arc::clone(&self.device),
+        );
+        self.ui.update(
             &mut self.player,
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
@@ -290,7 +298,9 @@ impl State {
             rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
             rpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
-            rpass.draw(0..6, 0..1);
+            rpass.set_index_buffer(self.ui.index_buffer.slice(..), 
+                                   wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..6, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));

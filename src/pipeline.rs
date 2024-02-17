@@ -8,7 +8,7 @@ use wgpu::{include_wgsl, util::DeviceExt, BindGroup, Buffer, Face, RenderPipelin
 
 use crate::{
     blocks::block::Block,
-    camera::Camera,
+    player::Camera,
     material::{Material, Texture},
     state::State,
 };

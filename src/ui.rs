@@ -1,6 +1,7 @@
-use crate::blocks::block::{Block, BlockVertexData};
+use crate::blocks::block::{Block, BlockVertexData, FaceDirections};
 use crate::material::Texture;
 use crate::pipeline::{Pipeline, PipelineTrait, PipelineType, Uniforms};
+use crate::player::Player;
 use crate::state::State;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
@@ -8,26 +9,57 @@ use wgpu::{BindGroup, Buffer, RenderPipeline};
 
 pub struct UI {
     pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
 }
 
 impl UI {
     pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
-        let vertices: [[f32; 3]; 6] = [
+        let vertices: [[f32; 3]; 4] = [
             [0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
             [1.0, 1.0, 0.0],
         ];
+        let indices: [u32; 6] = [0, 1, 2, 2, 1, 3];
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("UI Vertex Buffer"),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             contents: bytemuck::cast_slice(&vertices),
         });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("UI Vertex Buffer"),
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            contents: bytemuck::cast_slice(&indices),
+        });
 
-        Self { vertex_buffer }
+        Self {
+            vertex_buffer,
+            index_buffer,
+        }
+    }
+    pub fn update(&mut self, player: &Player, queue: Arc<wgpu::Queue>, device: Arc<wgpu::Device>) {
+        if let Some(facing_block) = player.facing_block.as_ref() {
+            let block = facing_block.lock().unwrap();
+
+            let face_data = block
+                .faces
+                .as_ref()
+                .unwrap()
+                .iter()
+                .find(|f| f.face_direction == FaceDirections::Top)
+                .unwrap()
+                .create_face_data_abs(&block);
+
+            let blocks_position = face_data.0.iter().map(|v| v.position).collect::<Vec<_>>();
+
+            queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&blocks_position),
+            );
+            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&face_data.1));
+        }
     }
 
     pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {

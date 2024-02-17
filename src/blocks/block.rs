@@ -102,6 +102,54 @@ impl BlockFace {
 
         (vertex_data, indices_map)
     }
+
+    pub fn create_face_data_abs(
+        &self,
+        block: &MutexGuard<'_, Block>, // To prevent deadlocks
+    ) -> (Vec<BlockVertexData>, Vec<u32>) {
+        let face_direction = self.face_direction;
+
+        let indices = face_direction.get_indices();
+
+        let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
+
+        let mut vertex_data: Vec<BlockVertexData> = Vec::with_capacity(4);
+
+        let mut indices_map: Vec<u32> = vec![0; 6];
+
+        for ind in indices.iter() {
+            if unique_indices.contains(ind) {
+                continue;
+            } else {
+                unique_indices.push(*ind);
+            }
+        }
+        for (i, indices_map) in indices_map.iter_mut().enumerate() {
+            let index_of = unique_indices
+                .iter()
+                .enumerate()
+                .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
+                .unwrap();
+            *indices_map = index_of as u32;
+        }
+
+        let face_texcoords = block.block_type.get_texcoords(face_direction);
+        let normals = face_direction.get_normal_vector();
+
+        unique_indices.iter().enumerate().for_each(|(i, index)| {
+            vertex_data.push(BlockVertexData {
+                position: [
+                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block.absolute_position.x,
+                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block.absolute_position.y,
+                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block.absolute_position.z,
+                ],
+                normal: normals.into(),
+                tex_coords: face_texcoords[i],
+            })
+        });
+
+        (vertex_data, indices_map)
+    }
 }
 impl Block {
     pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {

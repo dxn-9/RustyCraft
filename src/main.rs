@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytemuck::{Pod, Zeroable};
-use camera::CameraController;
+use player::CameraController;
 use glam::vec2;
 use material::Texture;
 use model::VertexData;
@@ -29,7 +29,7 @@ const DEFAULT_WINDOW_HEIGHT: u32 = 800;
 extern crate lazy_static;
 
 pub mod blocks;
-pub mod camera;
+pub mod player;
 pub mod chunk;
 pub mod collision;
 pub mod material;

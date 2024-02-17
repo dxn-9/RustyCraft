@@ -8,7 +8,31 @@ pub struct CollisionBox {
     pub max_z: f32,
 }
 
+pub struct CollisionPoint {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+impl CollisionPoint {
+    pub fn new(x: f32, y: f32, z: f32) -> CollisionPoint {
+        CollisionPoint { x, y, z }
+    }
+}
+
 impl CollisionBox {
+    pub fn from_block_position(x: f32, y: f32, z:f32) -> Self {
+        CollisionBox {
+            min_x: x,
+            max_x: x + 1.0,
+            min_y: y,
+            max_y: y + 1.0,
+            min_z: z,
+            max_z: z + 1.0,
+        }
+    }
+    pub fn to_block_position(&self) -> glam::Vec3 {
+        glam::vec3(self.min_x, self.min_y, self.min_z)
+    }
     pub fn new(x: f32, y: f32, z: f32, width: f32, height: f32, depth: f32) -> CollisionBox {
         CollisionBox {
             min_x: x,
@@ -18,6 +42,14 @@ impl CollisionBox {
             min_z: z,
             max_z: z + depth,
         }
+    }
+    pub fn intersects_point(&self, point: &CollisionPoint) -> bool {
+        return point.x >= self.min_x
+            && point.x <= self.max_x
+            && point.y >= self.min_y
+            && point.y <= self.max_y
+            && point.z >= self.min_z
+            && point.z <= self.max_z;
     }
     pub fn intersects_dir(&self, other: &CollisionBox) -> Option<(f32, f32, f32)> {
         if self.intersects(other) {

@@ -3,11 +3,12 @@ use std::{
     thread,
 };
 
+use crate::player::PLAYER_VIEW_OFFSET;
 use crate::{
     blocks::block::Block,
-    camera::Player,
     chunk::{BlockVec, Chunk},
     collision::CollisionBox,
+    player::Player,
     utils::threadpool::ThreadPool,
 };
 
@@ -61,13 +62,14 @@ impl World {
     pub fn get_blocks_nearby(&self, player: &Player) -> Option<Vec<Arc<Mutex<Block>>>> {
         let mut positions = vec![];
         let mut nearby_blocks = vec![];
-        let offset_vec = glam::vec3(0.4, 0.0, 0.4);
 
-        for i in -2..=2 {
-            for j in -2..=2 {
-                for h in -2..=2 {
+        for i in -5..=5 {
+            for j in -5..=5 {
+                for h in -5..=5 {
                     positions.push(
-                        player.camera.eye + offset_vec + glam::vec3(i as f32, h as f32, j as f32),
+                        player.camera.eye
+                            + PLAYER_VIEW_OFFSET
+                            + glam::vec3(i as f32, h as f32, j as f32),
                     );
                 }
             }

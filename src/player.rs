@@ -1,7 +1,10 @@
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
+use crate::blocks::block::Block;
+use crate::collision::CollisionPoint;
 use crate::{
     collision::CollisionBox,
     world::{World, CHUNK_SIZE},
@@ -10,6 +13,7 @@ use crate::{
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
 const GRAVITY: f32 = 10.0;
+pub static PLAYER_VIEW_OFFSET: Vec3 = vec3(0.4, 0.0, 0.4);
 lazy_static! {
     static ref JUMP_DURATION: Duration = Duration::from_secs_f32(0.1);
 }
@@ -33,11 +37,11 @@ pub struct Player {
     pub is_jumping: bool,
     pub jump_action_start: Option<Instant>,
     pub is_ghost: bool,
+    pub facing_block: Option<Arc<Mutex<Block>>>,
 }
 impl Player {
     // Position relative to the chunk
     pub fn to_relative_position(&self) -> glam::Vec3 {
-        
         todo!();
         // glam::vec3(
         //     f32::abs(self.camera.eye.x + (CHUNK_SIZE as f32 - 1.0) % CHUNK_SIZE as f32),
@@ -54,6 +58,29 @@ impl Player {
             2.0,
             0.8,
         )
+    }
+    // Gets the block that the player is facing
+    pub fn get_facing_block<'a>(
+        &mut self,
+        collisions: &'a Vec<CollisionBox>,
+    ) -> Option<&'a CollisionBox> {
+        let forward = self.camera.calc_target();
+
+        let mut block_collision: Option<&CollisionBox> = None;
+        'm: for i in 0..10 {
+            let test_position = (self.camera.eye + PLAYER_VIEW_OFFSET) + forward * (i as f32 * 0.5);
+            let test_collision =
+                CollisionPoint::new(test_position.x, test_position.y, test_position.z);
+
+            for collision in collisions.iter() {
+                if collision.intersects_point(&test_collision) {
+                    block_collision = Some(collision);
+                    break 'm;
+                }
+            }
+        }
+
+        return block_collision;
     }
     pub fn calc_current_chunk(&self) -> (i32, i32) {
         (
