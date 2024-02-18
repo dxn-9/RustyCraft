@@ -290,17 +290,40 @@ impl State {
                 );
                 rpass.draw_indexed(0..chunk.indices, 0, 0..1);
             }
+        }
+        {
+            let mut ui_renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.pipelines[0].depth_texture().view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
 
             let pipeline = &self.pipelines[1];
-            rpass.set_pipeline(pipeline.pipeline());
+            ui_renderpass.set_pipeline(pipeline.pipeline());
 
-            rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
-            rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+            ui_renderpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
+            ui_renderpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
-            rpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
-            rpass.set_index_buffer(self.ui.index_buffer.slice(..), 
-                                   wgpu::IndexFormat::Uint32);
-            rpass.draw_indexed(0..6, 0, 0..1);
+            ui_renderpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
+            ui_renderpass
+                .set_index_buffer(self.ui.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            ui_renderpass.draw_indexed(0..6, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));

@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 #[derive(Debug, Clone)]
 pub struct CollisionBox {
     pub min_x: f32,
@@ -13,6 +15,80 @@ pub struct CollisionPoint {
     pub y: f32,
     pub z: f32,
 }
+pub struct Ray {
+    pub origin: glam::Vec3,
+    pub direction: glam::Vec3,
+}
+
+impl Ray {
+    // https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection.html
+    pub fn intersects_box(&self, collision_box: &CollisionBox) -> Option<Vec<glam::Vec3>> {
+        let mut tmin;
+        let mut tmax;
+        let mut tymin;
+        let mut tymax;
+        let mut tzmin;
+        let mut tzmax;
+
+        let invdirx = 1.0 / self.direction.x;
+        let invdiry = 1.0 / self.direction.y;
+        let invdirz = 1.0 / self.direction.z;
+
+        if invdirx >= 0.0 {
+            tmin = (collision_box.min_x - self.origin.x) * invdirx;
+            tmax = (collision_box.max_x - self.origin.x) * invdirx;
+        } else {
+            tmin = (collision_box.max_x - self.origin.x) * invdirx;
+            tmax = (collision_box.min_x - self.origin.x) * invdirx;
+        }
+
+        if invdiry >= 0.0 {
+            tymin = (collision_box.min_y - self.origin.y) * invdiry;
+            tymax = (collision_box.max_y - self.origin.y) * invdiry;
+        } else {
+            tymin = (collision_box.max_y - self.origin.y) * invdiry;
+            tymax = (collision_box.min_y - self.origin.y) * invdiry;
+        }
+
+        if tmin > tymax || tymin > tmax {
+            return None;
+        }
+        if tymin > tmin {
+            tmin = tymin;
+        }
+        if tymax < tmax {
+            tmax = tymax;
+        }
+
+        if invdirz >= 0.0 {
+            tzmin = (collision_box.min_z - self.origin.z) * invdirz;
+            tzmax = (collision_box.max_z - self.origin.z) * invdirz;
+        } else {
+            tzmin = (collision_box.max_z - self.origin.z) * invdirz;
+            tzmax = (collision_box.min_z - self.origin.z) * invdirz;
+        }
+
+        if tmin > tzmax || tzmin > tmax {
+            return None;
+        }
+
+        if tzmin > tmin {
+            tmin = tzmin;
+        }
+        if tzmax < tmax {
+            tmax = tzmax;
+        }
+
+        return Some(vec![
+            self.origin + self.direction * tmin,
+            self.origin + self.direction * tmax,
+        ]);
+    }
+}
+pub struct RayResult<'a> {
+    pub points: Vec<glam::Vec3>,
+    pub collision: &'a CollisionBox,
+}
 impl CollisionPoint {
     pub fn new(x: f32, y: f32, z: f32) -> CollisionPoint {
         CollisionPoint { x, y, z }
@@ -20,7 +96,14 @@ impl CollisionPoint {
 }
 
 impl CollisionBox {
-    pub fn from_block_position(x: f32, y: f32, z:f32) -> Self {
+    pub fn center(&self) -> glam::Vec3 {
+        glam::vec3(
+            self.min_x + (self.max_x - self.min_x) / 2.0,
+            self.min_y + (self.max_y - self.min_y) / 2.0,
+            self.min_z + (self.max_z - self.min_z) / 2.0,
+        )
+    }
+    pub fn from_block_position(x: f32, y: f32, z: f32) -> Self {
         CollisionBox {
             min_x: x,
             max_x: x + 1.0,

@@ -63,14 +63,10 @@ impl World {
         let mut positions = vec![];
         let mut nearby_blocks = vec![];
 
-        for i in -5..=5 {
-            for j in -5..=5 {
-                for h in -5..=5 {
-                    positions.push(
-                        player.camera.eye
-                            + PLAYER_VIEW_OFFSET
-                            + glam::vec3(i as f32, h as f32, j as f32),
-                    );
+        for i in -10..=10 {
+            for j in -10..=10 {
+                for h in -10..=10 {
+                    positions.push(player.camera.eye + glam::vec3(i as f32, h as f32, j as f32));
                 }
             }
         }

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
 use crate::blocks::block::Block;
-use crate::collision::CollisionPoint;
+use crate::collision::{CollisionPoint, RayResult};
 use crate::{
     collision::CollisionBox,
     world::{World, CHUNK_SIZE},
@@ -13,7 +13,7 @@ use crate::{
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
 const GRAVITY: f32 = 10.0;
-pub static PLAYER_VIEW_OFFSET: Vec3 = vec3(0.4, 0.0, 0.4);
+pub static PLAYER_VIEW_OFFSET: Vec3 = vec3(0.4, 2.0, 0.4); /* this is kind of a hack, we should fix the camera's eye */
 lazy_static! {
     static ref JUMP_DURATION: Duration = Duration::from_secs_f32(0.1);
 }
@@ -65,18 +65,35 @@ impl Player {
         collisions: &'a Vec<CollisionBox>,
     ) -> Option<&'a CollisionBox> {
         let forward = self.camera.calc_target();
+        let mut ray_results: Vec<RayResult> = vec![];
+
+        let ray = crate::collision::Ray {
+            direction: forward,
+            origin: self.camera.eye,
+        };
+
+        for collision in collisions.iter() {
+            if let Some(intersection_points) = ray.intersects_box(collision) {
+                ray_results.push(RayResult {
+                    points: intersection_points,
+                    collision,
+                })
+            }
+        }
 
         let mut block_collision: Option<&CollisionBox> = None;
-        'm: for i in 0..10 {
-            let test_position = (self.camera.eye + PLAYER_VIEW_OFFSET) + forward * (i as f32 * 0.5);
-            let test_collision =
-                CollisionPoint::new(test_position.x, test_position.y, test_position.z);
+        let mut max_distance = f32::MAX;
 
-            for collision in collisions.iter() {
-                if collision.intersects_point(&test_collision) {
-                    block_collision = Some(collision);
-                    break 'm;
-                }
+        for result in ray_results.iter() {
+            let mut closest_point = result.points[0];
+            if result.points[1].distance(self.camera.eye) < closest_point.distance(self.camera.eye)
+            {
+                closest_point = result.points[1];
+            }
+
+            if closest_point.distance(self.camera.eye) < max_distance {
+                max_distance = closest_point.distance(self.camera.eye);
+                block_collision = Some(result.collision);
             }
         }
 
