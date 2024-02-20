@@ -3,14 +3,7 @@ use std::{
     thread,
 };
 
-use crate::player::PLAYER_VIEW_OFFSET;
-use crate::{
-    blocks::block::Block,
-    chunk::{BlockVec, Chunk},
-    collision::CollisionBox,
-    player::Player,
-    utils::threadpool::ThreadPool,
-};
+use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
 pub const CHUNK_SIZE: u32 = 16;
 pub const CHUNK_HEIGHT: u8 = u8::MAX;

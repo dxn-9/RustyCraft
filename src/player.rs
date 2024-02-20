@@ -13,7 +13,8 @@ use crate::{
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
 const GRAVITY: f32 = 10.0;
-pub static PLAYER_VIEW_OFFSET: Vec3 = vec3(0.4, 2.0, 0.4); /* this is kind of a hack, we should fix the camera's eye */
+pub static PLAYER_VIEW_OFFSET: Vec3 = vec3(0.4, 1.0, 0.4); /* this is kind of a hack, we should fix the camera's eye */
+
 lazy_static! {
     static ref JUMP_DURATION: Duration = Duration::from_secs_f32(0.1);
 }
@@ -52,7 +53,7 @@ impl Player {
     pub fn get_collision(&self) -> crate::collision::CollisionBox {
         crate::collision::CollisionBox::new(
             self.camera.eye.x - 0.4,
-            self.camera.eye.y - 1.0,
+            self.camera.eye.y - 1.8,
             self.camera.eye.z - 0.4,
             0.8,
             2.0,
@@ -69,7 +70,7 @@ impl Player {
 
         let ray = crate::collision::Ray {
             direction: forward,
-            origin: self.camera.eye,
+            origin: self.camera.eye + PLAYER_VIEW_OFFSET,
         };
 
         for collision in collisions.iter() {
