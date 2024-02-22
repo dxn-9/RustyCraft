@@ -14,7 +14,7 @@ pub struct BlockFace {
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,
-    pub faces: Option<Vec<BlockFace>>,
+    pub faces: Option<Vec<FaceDirections>>,
     pub block_type: BlockType,
     pub is_translucent: bool,
 }
@@ -45,23 +45,12 @@ pub enum FaceDirections {
     Top,
     Bottom,
 }
-
-#[repr(C)]
-#[derive(Pod, Copy, Clone, Zeroable)]
-pub struct BlockVertexData {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-    pub tex_coords: [f32; 2],
-}
-
-impl BlockFace {
+impl FaceDirections {
     pub fn create_face_data(
         &self,
-        block: &MutexGuard<'_, Block>, // To prevent deadlocks
+        block: &MutexGuard<'_, Block>,
     ) -> (Vec<BlockVertexData>, Vec<u32>) {
-        let face_direction = self.face_direction;
-
-        let indices = face_direction.get_indices();
+        let indices = self.get_indices();
 
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
 
@@ -85,8 +74,8 @@ impl BlockFace {
             *indices_map = index_of as u32;
         }
 
-        let face_texcoords = block.block_type.get_texcoords(face_direction);
-        let normals = face_direction.get_normal_vector();
+        let face_texcoords = block.block_type.get_texcoords(*self);
+        let normals = self.get_normal_vector();
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
             vertex_data.push(BlockVertexData {
@@ -107,9 +96,7 @@ impl BlockFace {
         &self,
         block: &MutexGuard<'_, Block>, // To prevent deadlocks
     ) -> (Vec<BlockVertexData>, Vec<u32>) {
-        let face_direction = self.face_direction;
-
-        let indices = face_direction.get_indices();
+        let indices = self.get_indices();
 
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
 
@@ -133,8 +120,8 @@ impl BlockFace {
             *indices_map = index_of as u32;
         }
 
-        let face_texcoords = block.block_type.get_texcoords(face_direction);
-        let normals = face_direction.get_normal_vector();
+        let face_texcoords = block.block_type.get_texcoords(*self);
+        let normals = self.get_normal_vector();
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
             vertex_data.push(BlockVertexData {
@@ -151,6 +138,15 @@ impl BlockFace {
         (vertex_data, indices_map)
     }
 }
+
+#[repr(C)]
+#[derive(Pod, Copy, Clone, Zeroable)]
+pub struct BlockVertexData {
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub tex_coords: [f32; 2],
+}
+
 impl Block {
     pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

@@ -88,7 +88,7 @@ impl Chunk {
 
                     for face in faces.iter() {
                         let mut is_visible = true;
-                        let face_position = face.face_direction.get_normal_vector() + position;
+                        let face_position = face.get_normal_vector() + position;
 
                         if Chunk::is_outside_bounds(&face_position) {
                             is_visible = false;
@@ -213,13 +213,8 @@ impl Chunk {
                         is_translucent: false,
                     }));
 
-                    let face_directions = FaceDirections::all()
-                        .iter()
-                        .map(|face_dir| BlockFace {
-                            block: Arc::downgrade(&block),
-                            face_direction: *face_dir,
-                        })
-                        .collect::<Vec<_>>();
+                    let face_directions =
+                        FaceDirections::all().iter().map(|f| *f).collect::<Vec<_>>();
 
                     block.lock().unwrap().faces = Some(face_directions);
                     let curr = &mut blocks[((x * CHUNK_SIZE) + z) as usize];
