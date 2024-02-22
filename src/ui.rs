@@ -47,7 +47,7 @@ impl UI {
                 .as_ref()
                 .unwrap()
                 .iter()
-                .find(|f| f.face_direction == FaceDirections::Top)
+                .find(|f| f.face_direction == player.facing_face.unwrap())
                 .unwrap()
                 .create_face_data_abs(&block);
 

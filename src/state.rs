@@ -1,3 +1,5 @@
+use std::ops::Deref;
+use std::sync::Mutex;
 use std::{cell::RefCell, f32::consts, rc::Rc, sync::Arc};
 
 use crate::collision::CollisionBox;
@@ -12,6 +14,7 @@ use crate::{
 };
 use glam::{vec2, Quat, Vec3};
 use wgpu::{util::DeviceExt, BufferUsages};
+use winit::window::CursorGrabMode;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, KeyEvent},
@@ -20,10 +23,11 @@ use winit::{
 };
 
 impl State {
-    pub async fn new(window: &Window) -> Self {
-        let size = window.inner_size();
+    pub async fn new(window: Arc<Mutex<Window>>) -> Self {
+        let windowbrw = window.lock().unwrap();
+        let size = windowbrw.inner_size();
         let instance = wgpu::Instance::default();
-        let surface = unsafe { instance.create_surface(&window).unwrap() };
+        let surface = unsafe { instance.create_surface(&*windowbrw).unwrap() };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -78,6 +82,7 @@ impl State {
             is_jumping: false,
             on_ground: false,
             facing_block: None,
+            facing_face: None,
             jump_action_start: None,
             is_ghost: false,
         };
@@ -97,6 +102,7 @@ impl State {
             pipelines: vec![],
             surface_config,
             instance,
+            window: window.clone(),
             device,
             world,
             queue,
@@ -142,6 +148,15 @@ impl State {
                 ..
             } => self.camera_controller.movement_vector.y = -1.0 * is_pressed,
             KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyK),
+                ..
+            } => self
+                .window
+                .lock()
+                .unwrap()
+                .set_cursor_grab(CursorGrabMode::Confined)
+                .unwrap(),
+            KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::Space),
                 state: winit::event::ElementState::Pressed,
                 ..
@@ -168,9 +183,6 @@ impl State {
                 } else {
                     self.config.polygon_mode = wgpu::PolygonMode::Line
                 }
-
-                // self.pipelines.pop();
-                // self.pipelines.push(Box::new(Pipeline::new(&self)))
             }
             _ => {}
         }
@@ -206,9 +218,10 @@ impl State {
             delta_time,
             &collisions,
         );
-        if let Some(block) = self.player.get_facing_block(&collisions) {
+        if let Some((block, face_dir)) = self.player.get_facing_block(&collisions) {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
             self.player.facing_block = block;
+            self.player.facing_face = Some(face_dir);
         }
 
         let uniforms = Uniforms::from(&self.player.camera);
@@ -340,6 +353,7 @@ pub struct State {
     pub adapter: wgpu::Adapter,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
+    pub window: Arc<Mutex<Window>>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Box<dyn PipelineTrait>>,
     pub player: Player,

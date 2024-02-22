@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
-use crate::blocks::block::Block;
+use crate::blocks::block::{Block, FaceDirections};
 use crate::collision::{CollisionPoint, RayResult};
 use crate::{
     collision::CollisionBox,
@@ -39,6 +39,7 @@ pub struct Player {
     pub jump_action_start: Option<Instant>,
     pub is_ghost: bool,
     pub facing_block: Option<Arc<Mutex<Block>>>,
+    pub facing_face: Option<FaceDirections>,
 }
 impl Player {
     // Position relative to the chunk
@@ -64,7 +65,7 @@ impl Player {
     pub fn get_facing_block<'a>(
         &mut self,
         collisions: &'a Vec<CollisionBox>,
-    ) -> Option<&'a CollisionBox> {
+    ) -> Option<(&'a CollisionBox, FaceDirections)> {
         let forward = self.camera.calc_target();
         let mut ray_results: Vec<RayResult> = vec![];
 
@@ -84,6 +85,7 @@ impl Player {
 
         let mut block_collision: Option<&CollisionBox> = None;
         let mut max_distance = f32::MAX;
+        let mut point: Option<Vec3> = None;
 
         for result in ray_results.iter() {
             let mut closest_point = result.points[0];
@@ -95,10 +97,30 @@ impl Player {
             if closest_point.distance(self.camera.eye) < max_distance {
                 max_distance = closest_point.distance(self.camera.eye);
                 block_collision = Some(result.collision);
+                point = Some(closest_point.clone());
             }
         }
+        let mut face_direction = None;
 
-        return block_collision;
+        return match (block_collision, point) {
+            (Some(block_collision), Some(point)) => {
+                // TODO: This can be precomputed
+
+                let point_dir = ((block_collision.center() - point).normalize()) * -1.0;
+
+                let face_directions = FaceDirections::all();
+                let mut best_dot = -1.0;
+                for face in face_directions.iter() {
+                    let dot = point_dir.dot(face.get_normal_vector());
+                    if dot > best_dot {
+                        best_dot = dot;
+                        face_direction = Some(face);
+                    }
+                }
+                Some((block_collision, *face_direction.unwrap()))
+            }
+            _ => None,
+        };
     }
     pub fn calc_current_chunk(&self) -> (i32, i32) {
         (

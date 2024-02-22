@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use std::{
     fs::File,
     io::BufReader,
@@ -8,12 +9,14 @@ use std::{
 };
 
 use bytemuck::{Pod, Zeroable};
-use player::CameraController;
 use glam::vec2;
 use material::Texture;
 use model::VertexData;
+use player::CameraController;
 use state::State;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
+use winit::keyboard::KeyCode;
+use winit::window::CursorGrabMode;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::*,
@@ -29,16 +32,16 @@ const DEFAULT_WINDOW_HEIGHT: u32 = 800;
 extern crate lazy_static;
 
 pub mod blocks;
-pub mod player;
 pub mod chunk;
 pub mod collision;
 pub mod material;
 pub mod model;
 pub mod pipeline;
+pub mod player;
 pub mod state;
+pub mod ui;
 pub mod utils;
 pub mod world;
-pub mod ui;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
     // let model: Obj = load_obj(input).unwrap();
@@ -51,11 +54,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     size.width = size.width.max(1);
     size.width = size.height.max(1);
 
-    let mut state = State::new(&window).await;
-    let window = &window;
+    let window = Arc::new(Mutex::new(window));
+    let mut state = State::new(window.clone()).await;
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;
+    let mut cursor_grab = CursorGrabMode::None;
 
     event_loop
         .run(move |event, target| {
@@ -69,7 +73,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 match event {
                     WindowEvent::Resized(new_size) => {
                         state.resize(new_size);
-                        window.request_redraw();
+                        window.lock().unwrap().request_redraw();
                     }
                     // WindowEvent::RedrawRequested => {}
                     WindowEvent::CloseRequested
@@ -110,7 +114,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
                         state.draw();
 
-                        window.request_redraw();
+                        window.lock().unwrap().request_redraw();
                     }
 
                     _ => {}
