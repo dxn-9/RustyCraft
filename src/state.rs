@@ -1,9 +1,7 @@
-use std::ops::Deref;
 use std::sync::Mutex;
-use std::{cell::RefCell, f32::consts, rc::Rc, sync::Arc};
+use std::{f32::consts, sync::Arc};
 
 use crate::collision::CollisionBox;
-use crate::pipeline::PipelineType;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::{
     material::Texture,
@@ -12,13 +10,12 @@ use crate::{
     ui::{UIPipeline, UI},
     world::World,
 };
-use glam::{vec2, Quat, Vec3};
-use wgpu::{util::DeviceExt, BufferUsages};
+use winit::event::MouseButton;
 use winit::window::CursorGrabMode;
 use winit::{
-    dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, ElementState, KeyEvent},
-    keyboard::{Key, KeyCode, NamedKey, PhysicalKey, SmolStr},
+    dpi::PhysicalSize,
+    event::KeyEvent,
+    keyboard::{KeyCode, PhysicalKey},
     window::Window,
 };
 
@@ -92,7 +89,8 @@ impl State {
             polygon_mode: wgpu::PolygonMode::Fill,
         };
 
-        let world = World::init_world(device.clone(), queue.clone());
+        let mut world = World::init_world(device.clone(), queue.clone());
+        world.init_chunks();
         let ui = UI::new(device.clone(), queue.clone());
 
         let mut state = Self {
@@ -187,6 +185,11 @@ impl State {
             _ => {}
         }
     }
+    pub fn on_click(&mut self, button: MouseButton) {
+        if let Some(facing_block) = self.player.facing_block.as_ref() {
+            self.world.remove_block(facing_block.clone());
+        }
+    }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
         self.player.camera.move_target(delta)
     }
@@ -260,6 +263,13 @@ impl State {
                 label: Some("command_encoder"),
             });
 
+        let chunks = self
+            .world
+            .chunks
+            .iter()
+            .map(|f| f.lock().unwrap())
+            .collect::<Vec<_>>();
+
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -294,11 +304,22 @@ impl State {
             rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
             rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
-            for chunk in self.world.chunks.iter() {
+            for chunk in chunks.iter() {
                 rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                rpass.set_vertex_buffer(0, chunk.chunk_vertex_buffer.slice(..));
+                rpass.set_vertex_buffer(
+                    0,
+                    chunk
+                        .chunk_vertex_buffer
+                        .as_ref()
+                        .expect("Vertex buffer not initiated")
+                        .slice(..),
+                );
                 rpass.set_index_buffer(
-                    chunk.chunk_index_buffer.slice(..),
+                    chunk
+                        .chunk_index_buffer
+                        .as_ref()
+                        .expect("Index buffer not initiated")
+                        .slice(..),
                     wgpu::IndexFormat::Uint32,
                 );
                 rpass.draw_indexed(0..chunk.indices, 0, 0..1);
@@ -343,6 +364,7 @@ impl State {
         frame.present();
     }
 }
+
 pub struct Config {
     pub polygon_mode: wgpu::PolygonMode,
 }

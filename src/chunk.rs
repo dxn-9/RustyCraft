@@ -1,7 +1,10 @@
-use std::sync::{Arc, Mutex};
+use glam::Vec3;
+use std::ffi::c_void;
+use std::sync::{Arc, Mutex, Weak};
 
 use wgpu::util::DeviceExt;
 
+use crate::world::World;
 use crate::{
     blocks::{
         block::{Block, BlockFace, BlockVertexData, FaceDirections},
@@ -10,40 +13,49 @@ use crate::{
     world::{NoiseData, CHUNK_HEIGHT, CHUNK_SIZE, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
 
-pub type BlockVec = Vec<Vec<Arc<Mutex<Block>>>>;
+pub type BlockVec = Vec<Vec<Option<Arc<Mutex<Block>>>>>;
+
 pub struct Chunk {
     // probably there needs to be a cube type with more info ( regarding type, etc. )
     pub x: i32,
     pub y: i32,
     pub blocks: BlockVec,
     pub indices: u32,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+    pub noise_data: Arc<NoiseData>,
     pub chunk_bind_group: wgpu::BindGroup,
     pub chunk_position_buffer: wgpu::Buffer,
-    // pub chunk_vertex_buffer: wgpu::Buffer,
-    pub chunk_index_buffer: wgpu::Buffer,
-    pub chunk_vertex_buffer: wgpu::Buffer,
+    pub chunk_index_buffer: Option<wgpu::Buffer>,
+    pub chunk_vertex_buffer: Option<wgpu::Buffer>,
 }
 
 impl Chunk {
+    pub fn remove_block(&mut self, block_r_position: &Vec3) {
+        let y_blocks = self
+            .blocks
+            .get_mut(((block_r_position.x * CHUNK_SIZE as f32) + block_r_position.z) as usize)
+            .expect("Cannot delete oob block");
+        y_blocks[block_r_position.y as usize] = None;
+    }
     pub fn exists_block_at(blocks: &BlockVec, position: &glam::Vec3) -> bool {
         if let Some(y_blocks) =
             blocks.get(((position.x as u32 * CHUNK_SIZE) + position.z as u32) as usize)
         {
-            if let Some(_) = y_blocks.get(position.y as usize) {
-                return true;
-            } else {
-                return false;
+            if let Some(block_opt) = y_blocks.get(position.y as usize) {
+                if let Some(_) = block_opt {
+                    return true;
+                }
             }
-        } else {
-            return false;
-        };
+        }
+        return false;
     }
     pub fn get_block_at_relative(&self, position: &glam::Vec3) -> Option<Arc<Mutex<Block>>> {
         if let Some(y_blocks) = self
             .blocks
             .get(((position.x * CHUNK_SIZE as f32) + position.z) as usize)
         {
-            if let Some(block) = y_blocks.get(position.y as usize) {
+            if let Some(block) = y_blocks.get(position.y as usize)? {
                 return Some(Arc::clone(block));
             }
         }
@@ -67,87 +79,103 @@ impl Chunk {
             false
         }
     }
-    // Returns the number of indices added to the chunk - it would've been better to be a mutable method but i can't do it because of borrow checker
-    pub fn build_mesh(
-        chunk_x: i32,
-        chunk_y: i32,
-        blocks: &BlockVec,
-        noise_data: Arc<NoiseData>,
-        device: Arc<wgpu::Device>,
-    ) -> (u32, wgpu::Buffer, wgpu::Buffer) {
+    pub fn build_mesh(&mut self, other_chunks: Vec<Arc<Mutex<Chunk>>>) {
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                let region = &blocks[(x * CHUNK_SIZE + z) as usize];
+                let region = &self.blocks[(x * CHUNK_SIZE + z) as usize];
                 for y in 0..region.len() {
                     let block = &region[y];
-                    let block = block.lock().unwrap();
-                    let position = block.position;
-                    let faces = block.faces.as_ref().unwrap();
+                    if let Some(block) = block {
+                        let block = block.lock().unwrap();
+                        let position = block.position;
+                        let faces = block.faces.as_ref().unwrap();
 
-                    for face in faces.iter() {
-                        let mut is_visible = true;
-                        let face_position = face.get_normal_vector() + position;
+                        for face in faces.iter() {
+                            let mut is_visible = true;
+                            let face_position = face.get_normal_vector() + position;
 
-                        if Chunk::is_outside_bounds(&face_position) {
-                            is_visible = false;
-                        } else if Chunk::is_outside_chunk(&face_position) {
-                            let target_chunk_x =
-                                chunk_x + (f32::floor(face_position.x / CHUNK_SIZE as f32) as i32);
-                            let target_chunk_y =
-                                chunk_y + (f32::floor(face_position.z / CHUNK_SIZE as f32) as i32);
+                            if Chunk::is_outside_bounds(&face_position) {
+                                is_visible = false;
+                            } else if Chunk::is_outside_chunk(&face_position) {
+                                let target_chunk_x = self.x
+                                    + (f32::floor(face_position.x / CHUNK_SIZE as f32) as i32);
+                                let target_chunk_y = self.y
+                                    + (f32::floor(face_position.z / CHUNK_SIZE as f32) as i32);
 
-                            let target_block = glam::vec3(
-                                (face_position.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                                face_position.y,
-                                (face_position.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                            );
+                                let target_block = glam::vec3(
+                                    (face_position.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                    face_position.y,
+                                    (face_position.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                );
 
-                            // This probably needs to be looked at again when the blocks can be placed/destroyed
-                            if face_position.y as u32
-                                <= Chunk::get_height_value(
-                                    target_chunk_x,
-                                    target_chunk_y,
-                                    target_block.x as u32,
-                                    target_block.z as u32,
-                                    noise_data.clone(),
+                                let target_chunk = other_chunks.iter().find(|c| {
+                                    let c = c.lock().unwrap();
+                                    c.x == target_chunk_x && c.y == target_chunk_y
+                                });
+                                match target_chunk {
+                                    Some(chunk) => {
+                                        println!("TARGET CHUNK FOUND");
+                                        let chunk = chunk.lock().unwrap();
+                                        if Chunk::exists_block_at(&chunk.blocks, &target_block) {
+                                            println!(
+                                                "TARGET BLOCK TRUE {:?} {} {}",
+                                                target_block, target_chunk_x, target_chunk_y
+                                            );
+                                            is_visible = false;
+                                        }
+                                    }
+                                    None => {
+                                        if face_position.y as u32
+                                            <= Chunk::get_height_value(
+                                            target_chunk_x,
+                                            target_chunk_y,
+                                            target_block.x as u32,
+                                            target_block.z as u32,
+                                            self.noise_data.clone(),
+                                        )
+                                        {
+                                            is_visible = false
+                                        };
+                                    }
+                                }
+                            } else if Chunk::exists_block_at(&self.blocks, &face_position) {
+                                is_visible = false;
+                            }
+
+                            if is_visible {
+                                let (mut vertex_data, index_data) = face.create_face_data(&block);
+                                vertex.append(&mut vertex_data);
+                                let indices_offset = vertex.len() as u32 - 4;
+                                indices.append(
+                                    &mut index_data.iter().map(|i| i + indices_offset).collect(),
                                 )
-                            {
-                                is_visible = false
-                            };
-                        } else if Chunk::exists_block_at(&blocks, &face_position) {
-                            is_visible = false;
-                        }
-
-                        if is_visible {
-                            let (mut vertex_data, index_data) = face.create_face_data(&block);
-                            vertex.append(&mut vertex_data);
-                            let indices_offset = vertex.len() as u32 - 4;
-                            indices.append(
-                                &mut index_data.iter().map(|i| i + indices_offset).collect(),
-                            )
+                            }
                         }
                     }
                 }
             }
         }
 
-        let chunk_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&vertex),
-            label: Some(&format!("chunk-vertex-{chunk_x}-{chunk_y}")),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
-        let chunk_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&indices),
-            label: Some(&format!("chunk-index-{chunk_x}-{chunk_y}")),
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-        });
-        return (
-            indices.len() as u32,
-            chunk_vertex_buffer,
-            chunk_index_buffer,
-        );
+        let chunk_vertex_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&vertex),
+                    label: Some(&format!("chunk-vertex-{}-{}", self.x, self.y)),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
+        let chunk_index_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&indices),
+                    label: Some(&format!("chunk-vertex-{}-{}", self.x, self.y)),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                });
+
+        self.indices = indices.len() as u32;
+        self.chunk_vertex_buffer = Some(chunk_vertex_buffer);
+        self.chunk_index_buffer = Some(chunk_index_buffer);
     }
     pub fn get_bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
@@ -164,6 +192,7 @@ impl Chunk {
             }],
         }
     }
+
     pub fn get_height_value(
         chunk_x: i32,
         chunk_y: i32,
@@ -218,7 +247,7 @@ impl Chunk {
 
                     block.lock().unwrap().faces = Some(face_directions);
                     let curr = &mut blocks[((x * CHUNK_SIZE) + z) as usize];
-                    curr.push(block.clone());
+                    curr.push(Some(block.clone()));
                 }
             }
         }
@@ -233,10 +262,9 @@ impl Chunk {
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
         chunk_data_layout: Arc<wgpu::BindGroupLayout>,
+        other_chunks: Vec<Arc<Mutex<Chunk>>>,
     ) -> Self {
         let blocks = Self::create_blocks_data(x, y, noise_data.clone());
-        let (indices, chunk_vertex_buffer, chunk_index_buffer) =
-            Self::build_mesh(x, y, &blocks, noise_data.clone(), device.clone());
 
         let chunk_position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             contents: bytemuck::cast_slice(&[x, y]),
@@ -253,15 +281,21 @@ impl Chunk {
             }],
         });
 
-        return Chunk {
+        let mut chunk = Chunk {
+            blocks,
             x,
             y,
-            blocks,
+            device,
+            queue,
+            noise_data,
+            chunk_vertex_buffer: None,
+            chunk_index_buffer: None,
             chunk_bind_group,
-            chunk_index_buffer,
             chunk_position_buffer,
-            chunk_vertex_buffer,
-            indices,
+            indices: 0,
         };
+        chunk.build_mesh(other_chunks);
+
+        return chunk;
     }
 }

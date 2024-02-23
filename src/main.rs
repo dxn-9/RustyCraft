@@ -59,7 +59,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;
-    let mut cursor_grab = CursorGrabMode::None;
 
     event_loop
         .run(move |event, target| {
@@ -88,6 +87,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
                     WindowEvent::KeyboardInput { event, .. } => {
                         state.handle_keypress(event, delta_time.as_secs_f32())
+                    }
+                    WindowEvent::MouseInput {
+                        state: ElementState::Pressed,
+                        button,
+                        ..
+                    } => {
+                        state.on_click(button);
                     }
 
                     WindowEvent::CursorMoved { position, .. } => {

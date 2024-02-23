@@ -8,8 +8,8 @@ use wgpu::{include_wgsl, util::DeviceExt, BindGroup, Buffer, Face, RenderPipelin
 
 use crate::{
     blocks::block::Block,
-    player::Camera,
     material::{Material, Texture},
+    player::Camera,
     state::State,
 };
 
@@ -221,6 +221,7 @@ impl Pipeline {
         }
     }
 }
+
 impl PipelineTrait for Pipeline {
     fn projection_buffer(&self) -> &Buffer {
         &self.projection_buffer
@@ -269,6 +270,7 @@ pub enum PipelineType {
     WORLD,
     UI,
 }
+
 pub struct Pipeline {
     pub projection_buffer: wgpu::Buffer,
     pub view_buffer: wgpu::Buffer,

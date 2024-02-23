@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
 use super::block_type::BlockType;
+use crate::world::CHUNK_SIZE;
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -11,6 +12,8 @@ pub struct BlockFace {
     pub face_direction: FaceDirections,
     pub block: Weak<Mutex<Block>>,
 }
+
+#[derive(Debug)]
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,
@@ -25,7 +28,6 @@ pub const CUBE_VERTEX: [f32; 24] = [
     -0.5, 0.5, -0.5,
     0.5, 0.5, -0.5,
     0.5, -0.5, -0.5,
-
     -0.5, -0.5, 0.5,
     -0.5, 0.5, 0.5,
     0.5, 0.5, 0.5,
@@ -45,6 +47,7 @@ pub enum FaceDirections {
     Top,
     Bottom,
 }
+
 impl FaceDirections {
     pub fn create_face_data(
         &self,
@@ -148,6 +151,36 @@ pub struct BlockVertexData {
 }
 
 impl Block {
+    pub fn get_neighbour_chunks_coords(&self) -> Vec<(i32, i32)> {
+        let chunk = self.get_chunk_coords();
+        let mut neighbour_chunks = vec![];
+
+        if self.position.x == 15.0 {
+            neighbour_chunks.push((chunk.0 + 1, chunk.1));
+        }
+        if self.position.x == 0.0 {
+            neighbour_chunks.push((chunk.0 - 1, chunk.1));
+        }
+        if self.position.z == 15.0 {
+            neighbour_chunks.push((chunk.0, chunk.1 + 1));
+        }
+        if self.position.z == 0.0 {
+            neighbour_chunks.push((chunk.0, chunk.1 - 1));
+        }
+        return neighbour_chunks;
+    }
+    pub fn is_on_chunk_border(&self) -> bool {
+        return self.position.x == 0.0
+            || self.position.x == 15.0
+            || self.position.z == 0.0
+            || self.position.z == 15.0;
+    }
+    pub fn get_chunk_coords(&self) -> (i32, i32) {
+        return (
+            (f32::floor(self.absolute_position.x / CHUNK_SIZE as f32)) as i32,
+            (f32::floor(self.absolute_position.z / CHUNK_SIZE as f32)) as i32,
+        );
+    }
     pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<BlockVertexData>() as wgpu::BufferAddress,
@@ -175,6 +208,7 @@ impl Block {
         }
     }
 }
+
 impl FaceDirections {
     pub fn all() -> [FaceDirections; 6] {
         [

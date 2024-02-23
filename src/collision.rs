@@ -15,6 +15,7 @@ pub struct CollisionPoint {
     pub y: f32,
     pub z: f32,
 }
+
 pub struct Ray {
     pub origin: glam::Vec3,
     pub direction: glam::Vec3,
@@ -85,10 +86,12 @@ impl Ray {
         ]);
     }
 }
+
 pub struct RayResult<'a> {
     pub points: Vec<glam::Vec3>,
     pub collision: &'a CollisionBox,
 }
+
 impl CollisionPoint {
     pub fn new(x: f32, y: f32, z: f32) -> CollisionPoint {
         CollisionPoint { x, y, z }

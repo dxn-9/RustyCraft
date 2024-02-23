@@ -1,7 +1,12 @@
+use std::any::Any;
+use std::ffi::c_void;
+use std::ops::Deref;
+use std::sync::Weak;
 use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
+use wgpu::util::DeviceExt;
 
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
@@ -26,23 +31,96 @@ pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
 };
 
 pub type NoiseData = Vec<f32>;
+
 pub struct World {
-    pub chunks: Vec<Chunk>,
+    pub chunks: Vec<Arc<Mutex<Chunk>>>,
     pub thread_pool: ThreadPool,
     pub seed: u32,
     pub noise_data: Arc<NoiseData>,
     pub chunk_data_layout: Arc<wgpu::BindGroupLayout>,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
 }
 
 impl World {
+    pub fn remove_block(&mut self, block: Arc<Mutex<Block>>) {
+        let blockbrw = block.lock().unwrap();
+        // TODO: Handle block on chunk border case
+        let chunk = blockbrw.get_chunk_coords();
+        let chunk = self
+            .chunks
+            .iter()
+            .find(|c| {
+                let c = c.lock().unwrap();
+                return c.x == chunk.0 && c.y == chunk.1;
+            })
+            .expect("Cannot delete a block from unloaded chunk");
+
+        let mut chunklock = chunk.lock().unwrap();
+        let chunkcoords = (chunklock.x, chunklock.y);
+        println!(
+            "\n\n JUST DELETED {:?} {:?}",
+            blockbrw.position, chunkcoords
+        );
+        chunklock.remove_block(&(blockbrw.position));
+        std::mem::drop(chunklock);
+
+        let other_chunks = self
+            .chunks
+            .iter()
+            .filter(|c| {
+                let c = c.lock().unwrap();
+                c.x != chunkcoords.0 && c.y != chunkcoords.1
+            })
+            .map(|p| p.clone())
+            .collect::<Vec<_>>();
+
+        let mut chunklock = chunk.lock().unwrap();
+        chunklock.build_mesh(other_chunks);
+        // I hate this so much
+
+        let neighbour_chunks = blockbrw.get_neighbour_chunks_coords();
+        std::mem::drop(chunklock);
+
+        println!("NEIGHBOUR CHUNKS {:?}", neighbour_chunks);
+
+        if neighbour_chunks.len() > 0 {
+            for neighbour_chunk in neighbour_chunks {
+                let neigh_chunk = self.chunks.iter().enumerate().find_map(|(i, o)| {
+                    let c = o.lock().unwrap();
+                    return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
+                        Some((i, o))
+                    } else {
+                        None
+                    };
+                });
+
+                if let Some((pi, chunk)) = neigh_chunk {
+                    let mut neighbour_chunk = chunk.lock().unwrap();
+                    let other_chunks = self
+                        .chunks
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, o)| {
+                            return if i != pi { Some(o.clone()) } else { None };
+                        })
+                        .collect::<Vec<_>>();
+                    println!("OTHER CHUNKS {}", other_chunks.len());
+
+                    neighbour_chunk.build_mesh(other_chunks);
+                }
+            }
+        }
+    }
     pub fn get_blocks_absolute(&self, position: &glam::Vec3) -> Option<Arc<Mutex<Block>>> {
         let chunk_x = (f32::floor(f32::floor(position.x) / CHUNK_SIZE as f32)) as i32;
         let chunk_y = (f32::floor(f32::floor(position.z) / CHUNK_SIZE as f32)) as i32;
 
-        let chunk = self
-            .chunks
-            .iter()
-            .find(|c| c.x == chunk_x && c.y == chunk_y)?;
+        let chunk = self.chunks.iter().find(|c| {
+            let c = c.lock().unwrap();
+            return c.x == chunk_x && c.y == chunk_y;
+        })?;
+        let chunk = chunk.lock().unwrap();
 
         let x =
             ((f32::floor(position.x) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32;
@@ -126,16 +204,18 @@ impl World {
                 })
                 .collect();
 
-            for i in 0..self.chunks.len() {
-                while let Some(chunk) = self.chunks.get(i) {
-                    if (delta.1 != 0 && chunk.y == chunk_y_remove)
-                        || (delta.0 != 0 && chunk.x == chunk_x_remove)
-                    {
-                        self.chunks.remove(i);
-                    } else {
-                        break;
-                    }
+            let mut indices_to_remove: Vec<usize> = vec![];
+            for (i, chunk) in self.chunks.iter().enumerate() {
+                let chunk = chunk.lock().unwrap();
+                if (delta.1 != 0 && chunk.y == chunk_y_remove)
+                    || (delta.0 != 0 && chunk.x == chunk_x_remove)
+                {
+                    indices_to_remove.push(i);
                 }
+            }
+
+            for (o, index) in indices_to_remove.iter().enumerate() {
+                self.chunks.remove(index - o);
             }
 
             let chunks_added = new_chunks_positions.len();
@@ -148,6 +228,7 @@ impl World {
                 let chunk_data_layout = Arc::clone(&self.chunk_data_layout);
                 let device = Arc::clone(&device);
                 let queue = Arc::clone(&queue);
+                let other_chunks = self.chunks.iter().map(|c| c.clone()).collect::<Vec<_>>();
 
                 self.thread_pool.execute(move || {
                     let chunk = Chunk::new(
@@ -157,6 +238,7 @@ impl World {
                         device,
                         queue,
                         chunk_data_layout,
+                        other_chunks,
                     );
                     sender.send(chunk).unwrap()
                 })
@@ -164,11 +246,45 @@ impl World {
 
             for _ in 0..chunks_added {
                 let chunk = receiver.recv().unwrap();
-                self.chunks.push(chunk);
+                self.chunks.push(Arc::new(Mutex::new(chunk)));
             }
         }
 
         player.current_chunk = current_chunk;
+    }
+    pub fn init_chunks(&mut self) {
+        let (sender, receiver) = mpsc::channel();
+
+        for chunk_x in LB..=UB {
+            for chunk_y in LB..=UB {
+                let sender = sender.clone();
+                let noise_data = Arc::clone(&self.noise_data);
+                let chunk_data_layout = Arc::clone(&self.chunk_data_layout);
+                let device = Arc::clone(&self.device);
+                let queue = Arc::clone(&self.queue);
+
+                self.thread_pool.execute(move || {
+                    let chunk = Chunk::new(
+                        chunk_x,
+                        chunk_y,
+                        noise_data,
+                        device,
+                        queue,
+                        chunk_data_layout,
+                        vec![],
+                    );
+                    sender.send(chunk).unwrap();
+                });
+            }
+        }
+        println!("END CHUNK");
+
+        let mut chunks = vec![];
+        for _ in 0..CHUNKS_PER_ROW * CHUNKS_PER_ROW {
+            let chunk = receiver.recv().unwrap();
+            chunks.push(Arc::new(Mutex::new(chunk)));
+        }
+        self.chunks.append(&mut chunks);
     }
     pub fn init_world(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         let noise_data = Arc::new(crate::utils::noise::create_world_noise_data(
@@ -180,40 +296,15 @@ impl World {
         let max_threads = thread::available_parallelism().unwrap();
         let threads = usize::max(usize::from(max_threads), 8);
         let thread_pool = ThreadPool::new(threads);
-        let (sender, receiver) = mpsc::channel();
-        for chunk_x in LB..=UB {
-            for chunk_y in LB..=UB {
-                let sender = sender.clone();
-                let noise_data = Arc::clone(&noise_data);
-                let chunk_data_layout = Arc::clone(&chunk_data_layout);
-                let device = Arc::clone(&device);
-                let queue = Arc::clone(&queue);
-                thread_pool.execute(move || {
-                    let chunk = Chunk::new(
-                        chunk_x,
-                        chunk_y,
-                        noise_data,
-                        device,
-                        queue,
-                        chunk_data_layout,
-                    );
-                    sender.send(chunk).unwrap();
-                });
-            }
-        }
 
-        let mut chunks = vec![];
-        for _ in 0..CHUNKS_PER_ROW * CHUNKS_PER_ROW {
-            let chunk = receiver.recv().unwrap();
-            chunks.push(chunk);
-        }
-
-        return Self {
+        World {
             chunk_data_layout,
-            chunks,
+            chunks: vec![],
             noise_data,
+            device,
+            queue,
             seed: 0,
             thread_pool,
-        };
+        }
     }
 }
