@@ -116,13 +116,8 @@ impl Chunk {
                                 });
                                 match target_chunk {
                                     Some(chunk) => {
-                                        println!("TARGET CHUNK FOUND");
                                         let chunk = chunk.lock().unwrap();
                                         if Chunk::exists_block_at(&chunk.blocks, &target_block) {
-                                            println!(
-                                                "TARGET BLOCK TRUE {:?} {} {}",
-                                                target_block, target_chunk_x, target_chunk_y
-                                            );
                                             is_visible = false;
                                         }
                                     }

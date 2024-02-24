@@ -54,8 +54,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     size.width = size.width.max(1);
     size.width = size.height.max(1);
 
+    window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+    window.set_cursor_visible(false);
     let window = Arc::new(Mutex::new(window));
     let mut state = State::new(window.clone()).await;
+
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;

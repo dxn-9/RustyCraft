@@ -43,72 +43,61 @@ pub struct World {
 }
 
 impl World {
+    // gets all the chunks except the one passed in the index
+    pub fn get_other_chunks(&self, chunk_index: usize) -> Vec<Arc<Mutex<Chunk>>> {
+        self.chunks
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                return if i != chunk_index {
+                    Some(c.clone())
+                } else {
+                    None
+                };
+            })
+            .collect()
+    }
     pub fn remove_block(&mut self, block: Arc<Mutex<Block>>) {
-        let blockbrw = block.lock().unwrap();
-        // TODO: Handle block on chunk border case
-        let chunk = blockbrw.get_chunk_coords();
-        let chunk = self
+        let block_borrow = block.lock().unwrap();
+        let chunk_coords = block_borrow.get_chunk_coords();
+        let (chunk_index, chunk) = self
             .chunks
             .iter()
-            .find(|c| {
+            .enumerate()
+            .find(|(i, c)| {
                 let c = c.lock().unwrap();
-                return c.x == chunk.0 && c.y == chunk.1;
+                return c.x == chunk_coords.0 && c.y == chunk_coords.1;
             })
             .expect("Cannot delete a block from unloaded chunk");
 
-        let mut chunklock = chunk.lock().unwrap();
-        let chunkcoords = (chunklock.x, chunklock.y);
-        println!(
-            "\n\n JUST DELETED {:?} {:?}",
-            blockbrw.position, chunkcoords
-        );
-        chunklock.remove_block(&(blockbrw.position));
-        std::mem::drop(chunklock);
+        let mut chunk_lock = chunk.lock().unwrap();
+        chunk_lock.remove_block(&(block_borrow.position));
 
-        let other_chunks = self
-            .chunks
-            .iter()
-            .filter(|c| {
-                let c = c.lock().unwrap();
-                c.x != chunkcoords.0 && c.y != chunkcoords.1
-            })
-            .map(|p| p.clone())
-            .collect::<Vec<_>>();
+        chunk_lock.build_mesh(self.get_other_chunks(chunk_index));
+        let block_neighbour_chunks = block_borrow.get_neighbour_chunks_coords();
 
-        let mut chunklock = chunk.lock().unwrap();
-        chunklock.build_mesh(other_chunks);
         // I hate this so much
+        std::mem::drop(chunk_lock);
 
-        let neighbour_chunks = blockbrw.get_neighbour_chunks_coords();
-        std::mem::drop(chunklock);
+        if block_neighbour_chunks.len() > 0 {
+            for neighbour_chunk in block_neighbour_chunks {
+                let (neighbour_index, neighbour_chunk) = self
+                    .chunks
+                    .iter()
+                    .enumerate()
+                    .find_map(|(i, o)| {
+                        let c = o.lock().unwrap();
+                        return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
+                            Some((i, o))
+                        } else {
+                            None
+                        };
+                    })
+                    .expect("Cannot destroy a block without neighbour being loaded");
 
-        println!("NEIGHBOUR CHUNKS {:?}", neighbour_chunks);
+                let mut neighbour_chunk = neighbour_chunk.lock().unwrap();
 
-        if neighbour_chunks.len() > 0 {
-            for neighbour_chunk in neighbour_chunks {
-                let neigh_chunk = self.chunks.iter().enumerate().find_map(|(i, o)| {
-                    let c = o.lock().unwrap();
-                    return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
-                        Some((i, o))
-                    } else {
-                        None
-                    };
-                });
-
-                if let Some((pi, chunk)) = neigh_chunk {
-                    let mut neighbour_chunk = chunk.lock().unwrap();
-                    let other_chunks = self
-                        .chunks
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, o)| {
-                            return if i != pi { Some(o.clone()) } else { None };
-                        })
-                        .collect::<Vec<_>>();
-                    println!("OTHER CHUNKS {}", other_chunks.len());
-
-                    neighbour_chunk.build_mesh(other_chunks);
-                }
+                neighbour_chunk.build_mesh(self.get_other_chunks(neighbour_index));
             }
         }
     }
