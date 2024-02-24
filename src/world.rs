@@ -8,6 +8,7 @@ use std::{
 };
 use wgpu::util::DeviceExt;
 
+use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
 pub const CHUNK_SIZE: u32 = 16;
@@ -57,6 +58,52 @@ impl World {
             })
             .collect()
     }
+    pub fn place_block(&mut self, block: Arc<Mutex<Block>>) {
+        let block_borrow = block.lock().unwrap();
+        let chunk_coords = block_borrow.get_chunk_coords();
+        let (chunk_index, chunk) = self
+            .chunks
+            .iter()
+            .enumerate()
+            .find(|(i, c)| {
+                let c = c.lock().unwrap();
+                return c.x == chunk_coords.0 && c.y == chunk_coords.1;
+            })
+            .expect("Cannot delete a block from unloaded chunk");
+
+        let mut chunk_lock = chunk.lock().unwrap();
+        std::mem::drop(block_borrow);
+        chunk_lock.add_block(block.clone());
+        chunk_lock.build_mesh(self.get_other_chunks(chunk_index));
+
+        let block_borrow = block.lock().unwrap();
+        let block_neighbour_chunks = block_borrow.get_neighbour_chunks_coords();
+        std::mem::drop(chunk_lock);
+
+        if block_neighbour_chunks.len() > 0 {
+            for neighbour_chunk in block_neighbour_chunks {
+                let (neighbour_index, neighbour_chunk) = self
+                    .chunks
+                    .iter()
+                    .enumerate()
+                    .find_map(|(i, o)| {
+                        let c = o.lock().unwrap();
+                        return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
+                            Some((i, o))
+                        } else {
+                            None
+                        };
+                    })
+                    .expect("Cannot destroy a block without neighbour being loaded");
+
+                let mut neighbour_chunk = neighbour_chunk.lock().unwrap();
+
+                neighbour_chunk.build_mesh(self.get_other_chunks(neighbour_index));
+            }
+        }
+
+        println!("2");
+    }
     pub fn remove_block(&mut self, block: Arc<Mutex<Block>>) {
         let block_borrow = block.lock().unwrap();
         let chunk_coords = block_borrow.get_chunk_coords();
@@ -102,8 +149,7 @@ impl World {
         }
     }
     pub fn get_blocks_absolute(&self, position: &glam::Vec3) -> Option<Arc<Mutex<Block>>> {
-        let chunk_x = (f32::floor(f32::floor(position.x) / CHUNK_SIZE as f32)) as i32;
-        let chunk_y = (f32::floor(f32::floor(position.z) / CHUNK_SIZE as f32)) as i32;
+        let (chunk_x, chunk_y) = position.get_chunk_from_position_absolute();
 
         let chunk = self.chunks.iter().find(|c| {
             let c = c.lock().unwrap();
@@ -111,11 +157,7 @@ impl World {
         })?;
         let chunk = chunk.lock().unwrap();
 
-        let x =
-            ((f32::floor(position.x) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32;
-        let z =
-            ((f32::floor(position.z) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32;
-        let relative_position = glam::vec3(x, f32::max(f32::floor(position.y), 0.0), z);
+        let relative_position = position.relative_from_absolute();
         let block = chunk.get_block_at_relative(&relative_position)?;
         return Some(block);
     }

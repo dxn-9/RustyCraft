@@ -42,10 +42,7 @@ impl UI {
         if let Some(facing_block) = player.facing_block.as_ref() {
             let block = facing_block.lock().unwrap();
 
-            let face_data = block
-                .faces
-                .as_ref()
-                .unwrap()
+            let face_data = FaceDirections::all()
                 .iter()
                 .find(|f| **f == player.facing_face.unwrap())
                 .unwrap()

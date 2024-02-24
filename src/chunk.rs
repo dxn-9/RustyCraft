@@ -7,7 +7,7 @@ use wgpu::util::DeviceExt;
 use crate::world::World;
 use crate::{
     blocks::{
-        block::{Block, BlockFace, BlockVertexData, FaceDirections},
+        block::{Block, BlockVertexData, FaceDirections},
         block_type::BlockType,
     },
     world::{NoiseData, CHUNK_HEIGHT, CHUNK_SIZE, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
@@ -31,6 +31,26 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    pub fn add_block(&mut self, block: Arc<Mutex<Block>>) {
+        let block_borrow = block.lock().unwrap();
+        let y_blocks = self
+            .blocks
+            .get_mut(
+                ((block_borrow.position.x * CHUNK_SIZE as f32) + block_borrow.position.z) as usize,
+            )
+            .expect("Cannot add oob block");
+
+        println!("ADD BLOCK");
+        let start_len = y_blocks.len();
+
+        for i in start_len..block_borrow.position.y as usize {
+            println!("LOLL");
+            if i >= y_blocks.len() {
+                y_blocks.push(None);
+            }
+        }
+        y_blocks.push(Some(block.clone()));
+    }
     pub fn remove_block(&mut self, block_r_position: &Vec3) {
         let y_blocks = self
             .blocks
@@ -90,7 +110,7 @@ impl Chunk {
                     if let Some(block) = block {
                         let block = block.lock().unwrap();
                         let position = block.position;
-                        let faces = block.faces.as_ref().unwrap();
+                        let faces = FaceDirections::all();
 
                         for face in faces.iter() {
                             let mut is_visible = true;
@@ -225,22 +245,12 @@ impl Chunk {
                         b => b,
                     };
 
-                    let block = Arc::new(Mutex::new(Block {
-                        faces: None,
-                        position: glam::vec3(x as f32, y as f32, z as f32),
-                        absolute_position: glam::vec3(
-                            (chunk_x * CHUNK_SIZE as i32 + x as i32) as f32,
-                            y as f32,
-                            (chunk_y * CHUNK_SIZE as i32 + z as i32) as f32,
-                        ),
+                    let block = Arc::new(Mutex::new(Block::new(
+                        glam::vec3(x as f32, y as f32, z as f32),
+                        (chunk_x, chunk_y),
                         block_type,
-                        is_translucent: false,
-                    }));
+                    )));
 
-                    let face_directions =
-                        FaceDirections::all().iter().map(|f| *f).collect::<Vec<_>>();
-
-                    block.lock().unwrap().faces = Some(face_directions);
                     let curr = &mut blocks[((x * CHUNK_SIZE) + z) as usize];
                     curr.push(Some(block.clone()));
                 }

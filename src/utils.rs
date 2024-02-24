@@ -1,3 +1,6 @@
+use crate::world::CHUNK_SIZE;
+use glam::{vec3, Vec3};
+
 fn fade(t: f32) -> f32 {
     ((6.0 * t - 15.) * t + 10.) * t * t * t
 }
@@ -158,5 +161,33 @@ pub(crate) mod threadpool {
             }
             ThreadPool { workers, sender }
         }
+    }
+}
+
+/* Utility traits */
+pub trait ChunkFromPosition {
+    fn get_chunk_from_position_absolute(&self) -> (i32, i32);
+}
+
+pub trait RelativeFromAbsolute {
+    fn relative_from_absolute(&self) -> glam::Vec3;
+}
+
+impl RelativeFromAbsolute for glam::Vec3 {
+    fn relative_from_absolute(&self) -> Vec3 {
+        return vec3(
+            ((f32::floor(self.x) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+            f32::max(f32::floor(self.y), 0.0),
+            ((f32::floor(self.z) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+        );
+    }
+}
+
+impl ChunkFromPosition for glam::Vec3 {
+    fn get_chunk_from_position_absolute(&self) -> (i32, i32) {
+        return (
+            (f32::floor(self.x / CHUNK_SIZE as f32)) as i32,
+            (f32::floor(self.z / CHUNK_SIZE as f32)) as i32,
+        );
     }
 }

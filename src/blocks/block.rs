@@ -2,24 +2,18 @@ use bytemuck::{Pod, Zeroable};
 
 use super::block_type::BlockType;
 use crate::world::CHUNK_SIZE;
+use glam::Vec3;
 use std::{
     cell::RefCell,
     rc::Rc,
     sync::{Arc, Mutex, MutexGuard, Weak},
 };
 
-pub struct BlockFace {
-    pub face_direction: FaceDirections,
-    pub block: Weak<Mutex<Block>>,
-}
-
 #[derive(Debug)]
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,
-    pub faces: Option<Vec<FaceDirections>>,
     pub block_type: BlockType,
-    pub is_translucent: bool,
 }
 
 #[rustfmt::skip]
@@ -151,6 +145,18 @@ pub struct BlockVertexData {
 }
 
 impl Block {
+    pub fn new(position: Vec3, chunk: (i32, i32), block_type: BlockType) -> Block {
+        let absolute_position = glam::vec3(
+            (chunk.0 * CHUNK_SIZE as i32 + position.x as i32) as f32,
+            position.y,
+            (chunk.1 * CHUNK_SIZE as i32 + position.z as i32) as f32,
+        );
+        Block {
+            position,
+            block_type,
+            absolute_position,
+        }
+    }
     pub fn get_neighbour_chunks_coords(&self) -> Vec<(i32, i32)> {
         let chunk = self.get_chunk_coords();
         let mut neighbour_chunks = vec![];

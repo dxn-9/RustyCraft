@@ -11,7 +11,6 @@ use std::{
 use bytemuck::{Pod, Zeroable};
 use glam::vec2;
 use material::Texture;
-use model::VertexData;
 use player::CameraController;
 use state::State;
 use tobj::{load_obj, load_obj_buf, LoadOptions};
@@ -35,7 +34,6 @@ pub mod blocks;
 pub mod chunk;
 pub mod collision;
 pub mod material;
-pub mod model;
 pub mod pipeline;
 pub mod player;
 pub mod state;
@@ -58,7 +56,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     window.set_cursor_visible(false);
     let window = Arc::new(Mutex::new(window));
     let mut state = State::new(window.clone()).await;
-
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;

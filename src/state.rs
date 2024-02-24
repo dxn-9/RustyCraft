@@ -1,8 +1,11 @@
 use std::sync::Mutex;
 use std::{f32::consts, sync::Arc};
 
+use crate::blocks::block::Block;
+use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
 use crate::pipeline::{Pipeline, PipelineTrait};
+use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{
     material::Texture,
     pipeline::{self, Uniforms},
@@ -187,7 +190,30 @@ impl State {
     }
     pub fn on_click(&mut self, button: MouseButton) {
         if let Some(facing_block) = self.player.facing_block.as_ref() {
-            self.world.remove_block(facing_block.clone());
+            let facing_face = self
+                .player
+                .facing_face
+                .expect("Cannot be not facing a face if it's facing a block");
+            match button {
+                MouseButton::Left => {
+                    self.world.remove_block(facing_block.clone());
+                }
+                MouseButton::Right => {
+                    let block_borrow = facing_block.lock().unwrap();
+                    let new_block_abs_position =
+                        block_borrow.absolute_position + facing_face.get_normal_vector();
+
+                    std::mem::drop(block_borrow); /* Prevent deadlock since we'll be using when building the mesh */
+                    let chunk = new_block_abs_position.get_chunk_from_position_absolute();
+                    let position = new_block_abs_position.relative_from_absolute();
+
+                    let new_block =
+                        Arc::new(Mutex::new(Block::new(position, chunk, BlockType::dirt())));
+
+                    self.world.place_block(new_block);
+                }
+                _ => {}
+            }
         }
     }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
@@ -225,6 +251,9 @@ impl State {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
             self.player.facing_block = block;
             self.player.facing_face = Some(face_dir);
+        } else {
+            self.player.facing_block = None;
+            self.player.facing_face = None;
         }
 
         let uniforms = Uniforms::from(&self.player.camera);
