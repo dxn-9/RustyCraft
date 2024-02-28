@@ -249,6 +249,7 @@ impl State {
         );
         if let Some((block, face_dir)) = self.player.get_facing_block(&collisions) {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
+
             self.player.facing_block = block;
             self.player.facing_face = Some(face_dir);
         } else {
@@ -386,7 +387,7 @@ impl State {
             ui_renderpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
             ui_renderpass
                 .set_index_buffer(self.ui.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            ui_renderpass.draw_indexed(0..6, 0, 0..1);
+            ui_renderpass.draw_indexed(0..self.ui.indices as u32, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));

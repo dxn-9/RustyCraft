@@ -69,7 +69,7 @@ impl Ray {
             tzmax = (collision_box.min_z - self.origin.z) * invdirz;
         }
 
-        if tmin > tzmax || tzmin > tmax {
+        if tmin > tzmax || tzmin > tmax || tmin < 0.0 || tmax < 0.0 {
             return None;
         }
 
@@ -87,6 +87,7 @@ impl Ray {
     }
 }
 
+#[derive(Debug)]
 pub struct RayResult<'a> {
     pub points: Vec<glam::Vec3>,
     pub collision: &'a CollisionBox,
@@ -117,7 +118,7 @@ impl CollisionBox {
         }
     }
     pub fn to_block_position(&self) -> glam::Vec3 {
-        glam::vec3(self.min_x, self.min_y, self.min_z)
+        return glam::vec3(self.min_x, self.min_y, self.min_z);
     }
     pub fn new(x: f32, y: f32, z: f32, width: f32, height: f32, depth: f32) -> CollisionBox {
         CollisionBox {

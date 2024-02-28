@@ -1,3 +1,4 @@
+use glam::Vec3;
 use std::any::Any;
 use std::ffi::c_void;
 use std::ops::Deref;
@@ -148,7 +149,7 @@ impl World {
             }
         }
     }
-    pub fn get_blocks_absolute(&self, position: &glam::Vec3) -> Option<Arc<Mutex<Block>>> {
+    pub fn get_blocks_absolute(&self, position: &Vec3) -> Option<Arc<Mutex<Block>>> {
         let (chunk_x, chunk_y) = position.get_chunk_from_position_absolute();
 
         let chunk = self.chunks.iter().find(|c| {
@@ -159,6 +160,7 @@ impl World {
 
         let relative_position = position.relative_from_absolute();
         let block = chunk.get_block_at_relative(&relative_position)?;
+
         return Some(block);
     }
     pub fn get_blocks_nearby(&self, player: &Player) -> Option<Vec<Arc<Mutex<Block>>>> {

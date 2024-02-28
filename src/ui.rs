@@ -10,6 +10,7 @@ use wgpu::{BindGroup, Buffer, RenderPipeline};
 pub struct UI {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
+    pub indices: usize,
 }
 
 impl UI {
@@ -34,6 +35,7 @@ impl UI {
         });
 
         Self {
+            indices: 0,
             vertex_buffer,
             index_buffer,
         }
@@ -50,12 +52,17 @@ impl UI {
 
             let blocks_position = face_data.0.iter().map(|v| v.position).collect::<Vec<_>>();
 
+            self.indices = face_data.1.len();
             queue.write_buffer(
                 &self.vertex_buffer,
                 0,
                 bytemuck::cast_slice(&blocks_position),
             );
             queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&face_data.1));
+        } else {
+            self.indices = 0;
+            queue.write_buffer(&self.vertex_buffer, 0, &[]);
+            queue.write_buffer(&self.index_buffer, 0, &[]);
         }
     }
 

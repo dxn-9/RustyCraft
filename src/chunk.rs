@@ -40,16 +40,15 @@ impl Chunk {
             )
             .expect("Cannot add oob block");
 
-        println!("ADD BLOCK");
         let start_len = y_blocks.len();
 
-        for i in start_len..block_borrow.position.y as usize {
-            println!("LOLL");
+        /* Make sure we don't have enough space in the vector */
+        for i in start_len..=block_borrow.position.y as usize {
             if i >= y_blocks.len() {
                 y_blocks.push(None);
             }
         }
-        y_blocks.push(Some(block.clone()));
+        y_blocks[block_borrow.position.y as usize] = Some(block.clone());
     }
     pub fn remove_block(&mut self, block_r_position: &Vec3) {
         let y_blocks = self
@@ -144,12 +143,12 @@ impl Chunk {
                                     None => {
                                         if face_position.y as u32
                                             <= Chunk::get_height_value(
-                                            target_chunk_x,
-                                            target_chunk_y,
-                                            target_block.x as u32,
-                                            target_block.z as u32,
-                                            self.noise_data.clone(),
-                                        )
+                                                target_chunk_x,
+                                                target_chunk_y,
+                                                target_block.x as u32,
+                                                target_block.z as u32,
+                                                self.noise_data.clone(),
+                                            )
                                         {
                                             is_visible = false
                                         };
