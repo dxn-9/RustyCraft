@@ -66,9 +66,9 @@ impl World {
             .chunks
             .iter()
             .enumerate()
-            .find(|(i, c)| {
+            .find(|(_, c)| {
                 let c = c.lock().unwrap();
-                return c.x == chunk_coords.0 && c.y == chunk_coords.1;
+                c.x == chunk_coords.0 && c.y == chunk_coords.1
             })
             .expect("Cannot delete a block from unloaded chunk");
 
@@ -112,9 +112,9 @@ impl World {
             .chunks
             .iter()
             .enumerate()
-            .find(|(i, c)| {
+            .find(|(_, c)| {
                 let c = c.lock().unwrap();
-                return c.x == chunk_coords.0 && c.y == chunk_coords.1;
+                c.x == chunk_coords.0 && c.y == chunk_coords.1
             })
             .expect("Cannot delete a block from unloaded chunk");
 
@@ -154,7 +154,7 @@ impl World {
 
         let chunk = self.chunks.iter().find(|c| {
             let c = c.lock().unwrap();
-            return c.x == chunk_x && c.y == chunk_y;
+            c.x == chunk_x && c.y == chunk_y
         })?;
         let chunk = chunk.lock().unwrap();
 

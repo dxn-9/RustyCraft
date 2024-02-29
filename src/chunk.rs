@@ -1,22 +1,17 @@
-use glam::Vec3;
-use std::ffi::c_void;
-use std::sync::{Arc, Mutex, Weak};
-
-use wgpu::util::DeviceExt;
-
-use crate::world::World;
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
         block_type::BlockType,
     },
-    world::{NoiseData, CHUNK_HEIGHT, CHUNK_SIZE, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
+    world::{NoiseData, CHUNK_SIZE, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
+use glam::Vec3;
+use std::sync::{Arc, Mutex};
+use wgpu::util::DeviceExt;
 
 pub type BlockVec = Vec<Vec<Option<Arc<Mutex<Block>>>>>;
 
 pub struct Chunk {
-    // probably there needs to be a cube type with more info ( regarding type, etc. )
     pub x: i32,
     pub y: i32,
     pub blocks: BlockVec,
