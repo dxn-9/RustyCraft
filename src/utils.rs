@@ -191,3 +191,34 @@ impl ChunkFromPosition for glam::Vec3 {
         );
     }
 }
+
+mod tests {
+    use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
+
+    #[test]
+    fn should_get_the_correct_chunk_from_position_absolute() {
+        let absolute_position = glam::vec3(17.0, 0.0, 20.0);
+        assert_eq!(absolute_position.get_chunk_from_position_absolute(), (1, 1));
+        let absolute_position = glam::vec3(32.0, 0.0, 20.0);
+        assert_eq!(absolute_position.get_chunk_from_position_absolute(), (2, 1));
+        let absolute_position = glam::vec3(-5.0, 0.0, -20.0);
+        assert_eq!(
+            absolute_position.get_chunk_from_position_absolute(),
+            (-1, -2)
+        ); //
+    }
+
+    #[test]
+    fn should_get_the_correct_relative_position() {
+        let absolute_position = glam::vec3(17.0, 0.0, 20.0); // Since there are 16 blocks 0->15, the next chunk will start from 16->31
+        assert_eq!(
+            absolute_position.relative_from_absolute(),
+            glam::vec3(1.0, 0.0, 4.0)
+        );
+        let absolute_position = glam::vec3(-1.0, 0.0, -1.0);
+        assert_eq!(
+            absolute_position.relative_from_absolute(),
+            glam::vec3(15.0, 0.0, 15.0)
+        );
+    }
+}
