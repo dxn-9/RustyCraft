@@ -145,6 +145,7 @@ pub struct BlockVertexData {
 }
 
 impl Block {
+    // Takes in relative position
     pub fn new(position: Vec3, chunk: (i32, i32), block_type: BlockType) -> Block {
         let absolute_position = glam::vec3(
             (chunk.0 * CHUNK_SIZE as i32 + position.x as i32) as f32,

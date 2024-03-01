@@ -253,6 +253,39 @@ impl Chunk {
 
         blocks
     }
+    pub fn place_trees(&mut self) {
+        let yblocks = self.blocks.get(&(7 * CHUNK_SIZE as usize) + 7).unwrap();
+        let highest_block = yblocks
+            .last()
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .position
+            .clone();
+
+        let base0 = Arc::new(Mutex::new(Block::new(
+            highest_block + glam::vec3(0.0, 1.0, 0.0),
+            (self.x, self.y),
+            BlockType::wood(),
+        )));
+        let base1 = Arc::new(Mutex::new(Block::new(
+            highest_block + glam::vec3(0.0, 2.0, 0.0),
+            (self.x, self.y),
+            BlockType::wood(),
+        )));
+        let base2 = Arc::new(Mutex::new(Block::new(
+            highest_block + glam::vec3(0.0, 3.0, 0.0),
+            (self.x, self.y),
+            BlockType::wood(),
+        )));
+
+        self.add_block(base0);
+        self.add_block(base1);
+        self.add_block(base2);
+    }
 
     pub fn new(
         x: i32,
@@ -293,6 +326,7 @@ impl Chunk {
             chunk_position_buffer,
             indices: 0,
         };
+        chunk.place_trees();
         chunk.build_mesh(other_chunks);
 
         return chunk;
