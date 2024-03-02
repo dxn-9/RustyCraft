@@ -3,11 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use super::block_type::BlockType;
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex, MutexGuard, Weak},
-};
+use std::sync::MutexGuard;
 
 #[derive(Debug)]
 pub struct Block {

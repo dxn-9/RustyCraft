@@ -1,13 +1,8 @@
 use glam::Vec3;
-use std::any::Any;
-use std::ffi::c_void;
-use std::ops::Deref;
-use std::sync::Weak;
 use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
-use wgpu::util::DeviceExt;
 
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};

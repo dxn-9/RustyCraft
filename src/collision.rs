@@ -1,5 +1,3 @@
-use std::mem::swap;
-
 #[derive(Debug, Clone)]
 pub struct CollisionBox {
     pub min_x: f32,
@@ -26,10 +24,10 @@ impl Ray {
     pub fn intersects_box(&self, collision_box: &CollisionBox) -> Option<Vec<glam::Vec3>> {
         let mut tmin;
         let mut tmax;
-        let mut tymin;
-        let mut tymax;
-        let mut tzmin;
-        let mut tzmax;
+        let tymin;
+        let tymax;
+        let tzmin;
+        let tzmax;
 
         let invdirx = 1.0 / self.direction.x;
         let invdiry = 1.0 / self.direction.y;
