@@ -3,7 +3,9 @@ use crate::{
         block::{Block, BlockVertexData, FaceDirections},
         block_type::BlockType,
     },
-    world::{NoiseData, CHUNK_SIZE, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
+    structures::Structure,
+    utils::{ChunkFromPosition, RelativeFromAbsolute},
+    world::{NoiseData, CHUNK_SIZE, MAX_TREES_PER_CHUNK, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
 use glam::Vec3;
 use std::sync::{Arc, Mutex};
@@ -23,11 +25,13 @@ pub struct Chunk {
     pub chunk_position_buffer: wgpu::Buffer,
     pub chunk_index_buffer: Option<wgpu::Buffer>,
     pub chunk_vertex_buffer: Option<wgpu::Buffer>,
+    pub outside_blocks: Vec<Arc<Mutex<Block>>>,
 }
 
 impl Chunk {
     pub fn add_block(&mut self, block: Arc<Mutex<Block>>) {
         let block_borrow = block.lock().unwrap();
+
         let y_blocks = self
             .blocks
             .get_mut(
@@ -254,37 +258,39 @@ impl Chunk {
         blocks
     }
     pub fn place_trees(&mut self) {
-        let yblocks = self.blocks.get(&(7 * CHUNK_SIZE as usize) + 7).unwrap();
-        let highest_block = yblocks
-            .last()
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .lock()
-            .unwrap()
-            .position
-            .clone();
+        let number_of_trees = rand::random::<f32>();
+        let number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
 
-        let base0 = Arc::new(Mutex::new(Block::new(
-            highest_block + glam::vec3(0.0, 1.0, 0.0),
-            (self.x, self.y),
-            BlockType::wood(),
-        )));
-        let base1 = Arc::new(Mutex::new(Block::new(
-            highest_block + glam::vec3(0.0, 2.0, 0.0),
-            (self.x, self.y),
-            BlockType::wood(),
-        )));
-        let base2 = Arc::new(Mutex::new(Block::new(
-            highest_block + glam::vec3(0.0, 3.0, 0.0),
-            (self.x, self.y),
-            BlockType::wood(),
-        )));
+        for i in 0..number_of_trees {
+            let x = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
+            let z = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
 
-        self.add_block(base0);
-        self.add_block(base1);
-        self.add_block(base2);
+            let block_column = self
+                .blocks
+                .get((x * CHUNK_SIZE as usize) + z)
+                .expect("TODO: fix this case");
+            let highest_block = block_column
+                .last()
+                .expect("TODO: Fix this case -h")
+                .as_ref()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .absolute_position;
+
+            let tree_blocks = crate::structures::Tree::get_blocks(highest_block);
+
+            for block in tree_blocks.iter() {
+                let block_brw = block.lock().unwrap();
+                let block_chunk = block_brw.get_chunk_coords();
+                std::mem::drop(block_brw);
+                if block_chunk == (self.x, self.y) {
+                    self.add_block(block.clone());
+                } else {
+                    self.outside_blocks.push(block.clone())
+                }
+            }
+        }
     }
 
     pub fn new(
@@ -325,6 +331,7 @@ impl Chunk {
             chunk_bind_group,
             chunk_position_buffer,
             indices: 0,
+            outside_blocks: vec![],
         };
         chunk.place_trees();
         chunk.build_mesh(other_chunks);

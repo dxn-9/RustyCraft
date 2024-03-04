@@ -37,6 +37,7 @@ pub mod material;
 pub mod pipeline;
 pub mod player;
 pub mod state;
+pub mod structures;
 pub mod ui;
 pub mod utils;
 pub mod world;

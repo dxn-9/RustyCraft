@@ -12,6 +12,7 @@ pub const CHUNK_HEIGHT: u8 = u8::MAX;
 pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
+pub const MAX_TREES_PER_CHUNK: u32 = 3;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
 pub const CHUNKS_PER_ROW: u32 = 9;
 
