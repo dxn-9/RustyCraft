@@ -42,7 +42,7 @@ pub struct World {
 
 impl World {
     // gets all the chunks except the one passed in the index
-    pub fn get_other_chunks(&self, chunk_index: usize) -> Vec<Arc<Mutex<Chunk>>> {
+    pub fn get_other_chunks_by_index(&self, chunk_index: usize) -> Vec<Arc<Mutex<Chunk>>> {
         self.chunks
             .iter()
             .enumerate()
@@ -55,14 +55,26 @@ impl World {
             })
             .collect()
     }
+    // gets all the chunks except the one passed
+    pub fn get_other_chunks(&self, chunk_ptr: &Arc<Mutex<Chunk>>) -> Vec<Arc<Mutex<Chunk>>> {
+        self.chunks
+            .iter()
+            .filter_map(|c| {
+                if !Arc::ptr_eq(&chunk_ptr, c) {
+                    Some(c.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
     pub fn place_block(&mut self, block: Arc<Mutex<Block>>) {
         let block_borrow = block.lock().unwrap();
         let chunk_coords = block_borrow.get_chunk_coords();
-        let (chunk_index, chunk) = self
+        let chunk = self
             .chunks
             .iter()
-            .enumerate()
-            .find(|(_, c)| {
+            .find(|c| {
                 let c = c.lock().unwrap();
                 c.x == chunk_coords.0 && c.y == chunk_coords.1
             })
@@ -71,7 +83,7 @@ impl World {
         let mut chunk_lock = chunk.lock().unwrap();
         std::mem::drop(block_borrow);
         chunk_lock.add_block(block.clone());
-        chunk_lock.build_mesh(self.get_other_chunks(chunk_index));
+        chunk_lock.build_mesh(self.get_other_chunks(chunk));
 
         let block_borrow = block.lock().unwrap();
         let block_neighbour_chunks = block_borrow.get_neighbour_chunks_coords();
@@ -79,23 +91,17 @@ impl World {
 
         if block_neighbour_chunks.len() > 0 {
             for neighbour_chunk in block_neighbour_chunks {
-                let (neighbour_index, neighbour_chunk) = self
+                let neighbour_chunk = self
                     .chunks
                     .iter()
-                    .enumerate()
-                    .find_map(|(i, o)| {
+                    .find(|o| {
                         let c = o.lock().unwrap();
-                        return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
-                            Some((i, o))
-                        } else {
-                            None
-                        };
+                        return c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1;
                     })
                     .expect("Cannot destroy a block without neighbour being loaded");
 
-                let mut neighbour_chunk = neighbour_chunk.lock().unwrap();
-
-                neighbour_chunk.build_mesh(self.get_other_chunks(neighbour_index));
+                let mut neighbour_chunkbrw = neighbour_chunk.lock().unwrap();
+                neighbour_chunkbrw.build_mesh(self.get_other_chunks(neighbour_chunk));
             }
         }
 
@@ -104,11 +110,10 @@ impl World {
     pub fn remove_block(&mut self, block: Arc<Mutex<Block>>) {
         let block_borrow = block.lock().unwrap();
         let chunk_coords = block_borrow.get_chunk_coords();
-        let (chunk_index, chunk) = self
+        let chunk = self
             .chunks
             .iter()
-            .enumerate()
-            .find(|(_, c)| {
+            .find(|c| {
                 let c = c.lock().unwrap();
                 c.x == chunk_coords.0 && c.y == chunk_coords.1
             })
@@ -117,7 +122,7 @@ impl World {
         let mut chunk_lock = chunk.lock().unwrap();
         chunk_lock.remove_block(&(block_borrow.position));
 
-        chunk_lock.build_mesh(self.get_other_chunks(chunk_index));
+        chunk_lock.build_mesh(self.get_other_chunks(chunk));
         let block_neighbour_chunks = block_borrow.get_neighbour_chunks_coords();
 
         // I hate this so much
@@ -125,23 +130,18 @@ impl World {
 
         if block_neighbour_chunks.len() > 0 {
             for neighbour_chunk in block_neighbour_chunks {
-                let (neighbour_index, neighbour_chunk) = self
+                let neighbour_chunk = self
                     .chunks
                     .iter()
-                    .enumerate()
-                    .find_map(|(i, o)| {
+                    .find(|o| {
                         let c = o.lock().unwrap();
-                        return if c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1 {
-                            Some((i, o))
-                        } else {
-                            None
-                        };
+                        c.x == neighbour_chunk.0 && c.y == neighbour_chunk.1
                     })
                     .expect("Cannot destroy a block without neighbour being loaded");
 
-                let mut neighbour_chunk = neighbour_chunk.lock().unwrap();
+                let mut neighbour_chunkbrw = neighbour_chunk.lock().unwrap();
 
-                neighbour_chunk.build_mesh(self.get_other_chunks(neighbour_index));
+                neighbour_chunkbrw.build_mesh(self.get_other_chunks(neighbour_chunk));
             }
         }
     }
@@ -277,6 +277,7 @@ impl World {
                 let chunk = receiver.recv().unwrap();
                 self.chunks.push(Arc::new(Mutex::new(chunk)));
             }
+            self.handle_outside_blocks();
         }
 
         player.current_chunk = current_chunk;
@@ -306,14 +307,45 @@ impl World {
                 });
             }
         }
-        println!("END CHUNK");
 
         let mut chunks = vec![];
         for _ in 0..CHUNKS_PER_ROW * CHUNKS_PER_ROW {
             let chunk = receiver.recv().unwrap();
             chunks.push(Arc::new(Mutex::new(chunk)));
         }
-        self.chunks.append(&mut chunks);
+        self.chunks.append(&mut chunks); // Add chunks to self
+
+        self.handle_outside_blocks();
+    }
+    fn handle_outside_blocks(&mut self) {
+        let mut blocks_to_add = vec![];
+        for chunk in self.chunks.iter() {
+            let mut chunkbrw = chunk.lock().unwrap();
+            blocks_to_add.append(&mut chunkbrw.outside_blocks);
+        }
+
+        let mut chunks_to_rerender = vec![];
+
+        for block in blocks_to_add.iter() {
+            let chunk_coords = block.lock().unwrap().get_chunk_coords();
+            if let Some(chunkptr) = self.chunks.iter().find(|c| {
+                let c = c.lock().unwrap();
+                c.x == chunk_coords.0 && c.y == chunk_coords.1
+            }) {
+                let mut chunkbrw = chunkptr.lock().unwrap();
+                chunkbrw.add_block(block.clone());
+                if let None = chunks_to_rerender.iter().find(|c| Arc::ptr_eq(c, chunkptr)) {
+                    chunks_to_rerender.push(chunkptr.clone());
+                };
+            }
+        }
+
+        // This should really be multi threadable imo..
+        for chunk in chunks_to_rerender.iter() {
+            let other_chunks = self.get_other_chunks(chunk);
+            let mut chunk = chunk.lock().unwrap();
+            chunk.build_mesh(other_chunks);
+        }
     }
     pub fn init_world(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
         let noise_data = Arc::new(crate::utils::noise::create_world_noise_data(
