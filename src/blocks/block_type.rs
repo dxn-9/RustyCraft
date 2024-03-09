@@ -37,7 +37,7 @@ impl BlockType {
             3 => Self::stone(),
             4 => Self::wood(),
             5 => Self::grass(),
-            _ => panic!("Invalid id")
+            _ => panic!("Invalid id"),
         }
     }
     pub fn to_id(&self) -> u32 {

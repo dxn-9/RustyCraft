@@ -284,7 +284,6 @@ impl World {
         player.current_chunk = current_chunk;
     }
     pub fn save_state(&self) {
-
         // TODO: Player position
         for chunk in self.chunks.iter() {
             let chunkbrw = chunk.lock().unwrap();

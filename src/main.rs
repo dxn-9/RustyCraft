@@ -88,7 +88,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     } => {
                         state.world.save_state();
                         target.exit();
-                    },
+                    }
 
                     WindowEvent::KeyboardInput { event, .. } => {
                         state.handle_keypress(event, delta_time.as_secs_f32())
