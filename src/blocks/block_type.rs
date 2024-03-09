@@ -1,4 +1,5 @@
 use rand::random;
+use std::any::Any;
 
 use super::block::{FaceDirections, TexturedBlock};
 
@@ -16,6 +17,8 @@ pub struct BlockTypeConfigs {
     pub bottom_texture: Option<FaceTexture>,
     pub is_translucent: bool,
 }
+
+#[repr(u32)]
 #[derive(Clone, Copy, Debug)]
 pub enum BlockType {
     Grass(BlockTypeConfigs),
@@ -26,6 +29,29 @@ pub enum BlockType {
     Stone(BlockTypeConfigs),
 }
 impl BlockType {
+    pub fn from_id(id: u32) -> BlockType {
+        match id {
+            0 => Self::dirt(),
+            1 => Self::water(),
+            2 => Self::leaf(),
+            3 => Self::stone(),
+            4 => Self::wood(),
+            5 => Self::grass(),
+            _ => panic!("Invalid id")
+        }
+    }
+    pub fn to_id(&self) -> u32 {
+        // meh
+        match self {
+            Self::Grass(f) => f.id,
+            Self::Dirt(f) => f.id,
+            Self::Water(f) => f.id,
+            Self::Wood(f) => f.id,
+            Self::Leaf(f) => f.id,
+            Self::Stone(f) => f.id,
+        }
+    }
+
     pub fn dirt() -> Self {
         Self::Dirt(BlockTypeConfigs {
             id: 0,

@@ -5,7 +5,6 @@ use crate::world::CHUNK_SIZE;
 use glam::Vec3;
 use std::sync::MutexGuard;
 
-#[derive(Debug)]
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,

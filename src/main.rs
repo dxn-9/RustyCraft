@@ -34,6 +34,7 @@ pub mod blocks;
 pub mod chunk;
 pub mod collision;
 pub mod material;
+mod persistance;
 pub mod pipeline;
 pub mod player;
 pub mod state;
@@ -84,7 +85,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                                 ..
                             },
                         ..
-                    } => target.exit(),
+                    } => {
+                        state.world.save_state();
+                        target.exit();
+                    },
 
                     WindowEvent::KeyboardInput { event, .. } => {
                         state.handle_keypress(event, delta_time.as_secs_f32())

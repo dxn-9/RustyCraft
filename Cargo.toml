@@ -6,17 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = { version = "0.29" , features=[ "rwh_05", "rwh_06"] }
+winit = { version = "0.29", features = ["rwh_05", "rwh_06"] }
 env_logger = "0.10"
 log = "0.4"
 wgpu = "0.18"
 pollster = "0.3.0"
-bytemuck = { version = "1.14.0" , features= ["derive"] }
-tobj = { version = "3.2.1", features = ["async"]}
-glam = { version = "0.24.2" , features=["bytemuck"]}
+bytemuck = { version = "1.14.0", features = ["derive"] }
+tobj = { version = "3.2.1", features = ["async"] }
+glam = { version = "0.24.2", features = ["bytemuck"] }
 obj-rs = "0.7.1"
 lazy_static = "1.4.0"
 rand = "0.8.5"
+
 [dependencies.image]
 version = "0.24.7"
 default-features = false

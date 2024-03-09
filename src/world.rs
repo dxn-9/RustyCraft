@@ -4,6 +4,7 @@ use std::{
     thread,
 };
 
+use crate::persistance::Saveable;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
@@ -281,6 +282,14 @@ impl World {
         }
 
         player.current_chunk = current_chunk;
+    }
+    pub fn save_state(&self) {
+
+        // TODO: Player position
+        for chunk in self.chunks.iter() {
+            let chunkbrw = chunk.lock().unwrap();
+            chunkbrw.save().unwrap();
+        }
     }
     pub fn init_chunks(&mut self) {
         let (sender, receiver) = mpsc::channel();

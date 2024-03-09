@@ -1,13 +1,15 @@
+use crate::persistance::{Loadable, Saveable};
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
         block_type::BlockType,
     },
     structures::Structure,
-    utils::{ChunkFromPosition, RelativeFromAbsolute},
     world::{NoiseData, CHUNK_SIZE, MAX_TREES_PER_CHUNK, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
 use glam::Vec3;
+use std::any::Any;
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 use wgpu::util::DeviceExt;
 
@@ -302,7 +304,11 @@ impl Chunk {
         chunk_data_layout: Arc<wgpu::BindGroupLayout>,
         other_chunks: Vec<Arc<Mutex<Chunk>>>,
     ) -> Self {
-        let blocks = Self::create_blocks_data(x, y, noise_data.clone());
+        let blocks = if let Ok(blocks) = Self::load(Box::new((x, y))) {
+            blocks
+        } else {
+            Self::create_blocks_data(x, y, noise_data.clone())
+        };
 
         let chunk_position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             contents: bytemuck::cast_slice(&[x, y]),
@@ -337,5 +343,100 @@ impl Chunk {
         chunk.build_mesh(other_chunks);
 
         return chunk;
+    }
+}
+
+impl Saveable<Chunk> for Chunk {
+    fn save(&self) -> Result<(), Box<dyn Error>> {
+        if let Ok(_) = std::fs::create_dir("chunks") {
+            println!("Created dir");
+        }
+        let mut data = String::new();
+
+        for col in self.blocks.iter() {
+            for block in col.iter() {
+                if let Some(block_ptr) = block {
+                    let blockbrw = block_ptr.lock().unwrap();
+                    data += &format!(
+                        "{},{},{},{}\n",
+                        blockbrw.position.x,
+                        blockbrw.position.y,
+                        blockbrw.position.z,
+                        blockbrw.block_type.to_id()
+                    );
+                }
+            }
+        }
+
+        let chunk_file_name = format!("chunks/chunk{}_{}", self.x, self.y);
+        std::fs::write(chunk_file_name.clone(), data.as_bytes())?;
+
+        Ok(())
+    }
+}
+
+impl Loadable<BlockVec> for Chunk {
+    fn load(args: Box<dyn Any>) -> Result<BlockVec, Box<dyn Error>> {
+        if let Ok(chunk_position) = args.downcast::<(i32, i32)>() {
+            for entry in std::fs::read_dir("chunks")? {
+                let file = entry?;
+                let filename_chunk = file.file_name();
+                let mut coords = filename_chunk
+                    .to_str()
+                    .unwrap()
+                    .split("k")
+                    .last()
+                    .expect("Invalid filename")
+                    .split("_");
+                let x = coords.next().unwrap().parse::<i32>().unwrap();
+                let y = coords.next().unwrap().parse::<i32>().unwrap();
+
+                let mut blocks: BlockVec = vec![];
+                if *chunk_position == (x, y) {
+                    let file_contents =
+                        std::fs::read_to_string(format!("chunks/chunk{}_{}", x, y))?;
+                    for line in file_contents.lines() {
+                        let mut i = line.split(",");
+                        let bx = i.next().unwrap().parse::<u32>()?;
+                        let by = i.next().unwrap().parse::<u32>()?;
+                        let bz = i.next().unwrap().parse::<u32>()?;
+                        let block_type = i.next().unwrap().parse::<u32>()?;
+                        let block_type = BlockType::from_id(block_type);
+
+                        let block = Block::new(
+                            glam::vec3(bx as f32, by as f32, bz as f32),
+                            (x, y),
+                            block_type,
+                        );
+
+                        if let None = blocks.get_mut(
+                            (block.position.x as u32 * CHUNK_SIZE + block.position.z as u32)
+                                as usize,
+                        ) {
+                            // This works only because chunks rows are in order
+                            blocks.push(vec![]);
+                        }
+                        let y_blocks = blocks
+                            .get_mut(
+                                (block.position.x as u32 * CHUNK_SIZE + block.position.z as u32)
+                                    as usize,
+                            )
+                            .unwrap();
+
+                        let start_len = y_blocks.len();
+                        let y_position = block.position.y as usize;
+
+                        for i in start_len..=y_position {
+                            if i >= y_blocks.len() {
+                                y_blocks.push(None);
+                            }
+                        }
+                        y_blocks[y_position] = Some(Arc::new(Mutex::new(block)));
+                    }
+                    return Ok(blocks);
+                }
+            }
+        }
+        return Err("Not valid args".into());
     }
 }
