@@ -33,7 +33,7 @@ pub type NoiseData = Vec<f32>;
 
 pub struct World {
     pub chunks: Vec<Arc<Mutex<Chunk>>>,
-    pub thread_pool: ThreadPool,
+    pub thread_pool: Option<ThreadPool>,
     pub seed: u32,
     pub noise_data: Arc<NoiseData>,
     pub chunk_data_layout: Arc<wgpu::BindGroupLayout>,
@@ -260,7 +260,7 @@ impl World {
                 let queue = Arc::clone(&queue);
                 let other_chunks = self.chunks.iter().map(|c| c.clone()).collect::<Vec<_>>();
 
-                self.thread_pool.execute(move || {
+                self.thread_pool.as_ref().unwrap().execute(move || {
                     let chunk = Chunk::new(
                         new_chunk_pos.0,
                         new_chunk_pos.1,
@@ -283,8 +283,10 @@ impl World {
 
         player.current_chunk = current_chunk;
     }
+    pub fn dispose(&mut self) {
+        self.thread_pool = None;
+    }
     pub fn save_state(&self) {
-        // TODO: Player position
         for chunk in self.chunks.iter() {
             let chunkbrw = chunk.lock().unwrap();
             chunkbrw.save().unwrap();
@@ -301,7 +303,7 @@ impl World {
                 let device = Arc::clone(&self.device);
                 let queue = Arc::clone(&self.queue);
 
-                self.thread_pool.execute(move || {
+                self.thread_pool.as_ref().unwrap().execute(move || {
                     let chunk = Chunk::new(
                         chunk_x,
                         chunk_y,
@@ -373,7 +375,7 @@ impl World {
             device,
             queue,
             seed: 0,
-            thread_pool,
+            thread_pool: Some(thread_pool),
         }
     }
 }

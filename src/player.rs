@@ -1,3 +1,6 @@
+use std::any::Any;
+use std::error::Error;
+use std::f32::consts;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -5,6 +8,7 @@ use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
 use crate::blocks::block::{Block, FaceDirections};
 use crate::collision::{CollisionPoint, RayResult};
+use crate::persistance::{Loadable, Saveable};
 use crate::{
     collision::CollisionBox,
     world::{World, CHUNK_SIZE},
@@ -105,7 +109,6 @@ impl Player {
         return match (block_collision, point) {
             (Some(block_collision), Some(point)) => {
                 // TODO: This can be precomputed
-
                 let point_dir = ((block_collision.center() - point).normalize()) * -1.0;
 
                 let face_directions = FaceDirections::all();
@@ -225,6 +228,24 @@ pub struct Camera {
 }
 
 impl Camera {
+    pub fn new(surface_width: f32, surface_height: f32) -> Camera {
+        let eye = if let Ok(eye) = Camera::load(Box::new(())) {
+            eye
+        } else {
+            glam::vec3(-4.0, 50.0, 4.0)
+        };
+        Self {
+            aspect_ratio: surface_width / surface_height,
+            eye,
+            yaw: consts::FRAC_PI_2,
+            pitch: 0.0,
+
+            fovy: consts::FRAC_PI_4,
+            znear: 0.1,
+            zfar: 1000.,
+            needs_update: false,
+        }
+    }
     pub fn build_view_matrix(&self) -> glam::Mat4 {
         glam::Mat4::look_at_lh(self.eye, self.eye + self.calc_target(), glam::Vec3::Y)
     }
@@ -248,5 +269,32 @@ impl Camera {
         self.pitch -= direction.y * SENSITIVITY;
 
         self.needs_update = true;
+    }
+}
+
+impl Saveable<glam::Vec3> for Camera {
+    fn save(&self) -> Result<(), Box<dyn Error>> {
+        if let Ok(_) = std::fs::create_dir("data") {
+            println!("Created dir");
+        }
+        let data = format!("{},{},{}", self.eye.x, self.eye.y, self.eye.z);
+
+        let player_file_name = "data/player";
+        std::fs::write(player_file_name, data.as_bytes())?;
+        println!("WROTE FILE {:?}", player_file_name);
+
+        Ok(())
+    }
+}
+
+impl Loadable<glam::Vec3> for Camera {
+    fn load(_: Box<dyn Any>) -> Result<Vec3, Box<dyn Error>> {
+        let data = String::from_utf8(std::fs::read("data/player")?)?;
+        let mut data = data.split(",");
+        let x = data.next().unwrap().parse::<f32>().unwrap();
+        let y = data.next().unwrap().parse::<f32>().unwrap();
+        let z = data.next().unwrap().parse::<f32>().unwrap();
+
+        return Ok(glam::vec3(x, y, z));
     }
 }

@@ -10,6 +10,7 @@ use crate::{
 use glam::Vec3;
 use std::any::Any;
 use std::error::Error;
+use std::ptr::drop_in_place;
 use std::sync::{Arc, Mutex};
 use wgpu::util::DeviceExt;
 
@@ -304,7 +305,9 @@ impl Chunk {
         chunk_data_layout: Arc<wgpu::BindGroupLayout>,
         other_chunks: Vec<Arc<Mutex<Chunk>>>,
     ) -> Self {
+        let mut was_loaded = false;
         let blocks = if let Ok(blocks) = Self::load(Box::new((x, y))) {
+            was_loaded = true;
             blocks
         } else {
             Self::create_blocks_data(x, y, noise_data.clone())
@@ -324,7 +327,6 @@ impl Chunk {
                 resource: chunk_position_buffer.as_entire_binding(),
             }],
         });
-
         let mut chunk = Chunk {
             blocks,
             x,
@@ -339,7 +341,10 @@ impl Chunk {
             indices: 0,
             outside_blocks: vec![],
         };
-        chunk.place_trees();
+
+        if !was_loaded {
+            chunk.place_trees();
+        }
         chunk.build_mesh(other_chunks);
 
         return chunk;
@@ -348,7 +353,7 @@ impl Chunk {
 
 impl Saveable<Chunk> for Chunk {
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        if let Ok(_) = std::fs::create_dir("chunks") {
+        if let Ok(_) = std::fs::create_dir("data") {
             println!("Created dir");
         }
         let mut data = String::new();
@@ -368,17 +373,25 @@ impl Saveable<Chunk> for Chunk {
             }
         }
 
-        let chunk_file_name = format!("chunks/chunk{}_{}", self.x, self.y);
+        let chunk_file_name = format!("data/chunk{}_{}", self.x, self.y);
         std::fs::write(chunk_file_name.clone(), data.as_bytes())?;
+        println!("WROTE FILE {:?}", chunk_file_name);
 
         Ok(())
+    }
+}
+
+// Whenever a chunk gets dropped save it
+impl Drop for Chunk {
+    fn drop(&mut self) {
+        let _ = self.save();
     }
 }
 
 impl Loadable<BlockVec> for Chunk {
     fn load(args: Box<dyn Any>) -> Result<BlockVec, Box<dyn Error>> {
         if let Ok(chunk_position) = args.downcast::<(i32, i32)>() {
-            for entry in std::fs::read_dir("chunks")? {
+            for entry in std::fs::read_dir("data")? {
                 let file = entry?;
                 let filename_chunk = file.file_name();
                 let mut coords = filename_chunk
@@ -388,13 +401,12 @@ impl Loadable<BlockVec> for Chunk {
                     .last()
                     .expect("Invalid filename")
                     .split("_");
-                let x = coords.next().unwrap().parse::<i32>().unwrap();
-                let y = coords.next().unwrap().parse::<i32>().unwrap();
+                let x = coords.next().unwrap().parse::<i32>()?;
+                let y = coords.next().unwrap().parse::<i32>()?;
 
                 let mut blocks: BlockVec = vec![];
                 if *chunk_position == (x, y) {
-                    let file_contents =
-                        std::fs::read_to_string(format!("chunks/chunk{}_{}", x, y))?;
+                    let file_contents = std::fs::read_to_string(format!("data/chunk{}_{}", x, y))?;
                     for line in file_contents.lines() {
                         let mut i = line.split(",");
                         let bx = i.next().unwrap().parse::<u32>()?;

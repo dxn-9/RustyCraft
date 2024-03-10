@@ -21,6 +21,7 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::Window,
 };
+use crate::persistance::Saveable;
 
 impl State {
     pub async fn new(window: Arc<Mutex<Window>>) -> Self {
@@ -119,6 +120,13 @@ impl State {
         state.pipelines.push(ui_pipeline);
 
         state
+    }
+    pub fn save_state(&mut self) {
+        self.player.camera.save().expect("Failed to save camera state");
+        self.world.save_state();
+    }
+    pub fn dispose(&mut self) {
+        self.world.dispose();
     }
     pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
         let is_pressed: f32 = if event.state.is_pressed() { 1. } else { 0. };

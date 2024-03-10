@@ -76,7 +76,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         state.resize(new_size);
                         window.lock().unwrap().request_redraw();
                     }
-                    // WindowEvent::RedrawRequested => {}
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
                         event:
@@ -86,7 +85,8 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                             },
                         ..
                     } => {
-                        state.world.save_state();
+                        state.save_state();
+                        state.dispose();
                         target.exit();
                     }
 
