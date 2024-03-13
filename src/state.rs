@@ -1,9 +1,10 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 use std::{f32::consts, sync::Arc};
 
 use crate::blocks::block::Block;
 use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
+use crate::persistance::Saveable;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{
@@ -21,7 +22,6 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::Window,
 };
-use crate::persistance::Saveable;
 
 impl State {
     pub async fn new(window: Arc<Mutex<Window>>) -> Self {
@@ -122,7 +122,10 @@ impl State {
         state
     }
     pub fn save_state(&mut self) {
-        self.player.camera.save().expect("Failed to save camera state");
+        self.player
+            .camera
+            .save()
+            .expect("Failed to save camera state");
         self.world.save_state();
     }
     pub fn dispose(&mut self) {
@@ -207,7 +210,7 @@ impl State {
                     self.world.remove_block(facing_block.clone());
                 }
                 MouseButton::Right => {
-                    let block_borrow = facing_block.lock().unwrap();
+                    let block_borrow = facing_block.read().unwrap();
                     let new_block_abs_position =
                         block_borrow.absolute_position + facing_face.get_normal_vector();
 
@@ -216,7 +219,7 @@ impl State {
                     let position = new_block_abs_position.relative_from_absolute();
 
                     let new_block =
-                        Arc::new(Mutex::new(Block::new(position, chunk, BlockType::dirt())));
+                        Arc::new(RwLock::new(Block::new(position, chunk, BlockType::dirt())));
 
                     self.world.place_block(new_block);
                 }
@@ -241,7 +244,7 @@ impl State {
         let mut collisions = vec![];
         if let Some(nearby_blocks) = self.world.get_blocks_nearby(&self.player) {
             for block in nearby_blocks.iter() {
-                let block = block.lock().unwrap();
+                let block = block.read().unwrap();
                 let collision = CollisionBox::from_block_position(
                     block.absolute_position.x,
                     block.position.y,
@@ -305,7 +308,7 @@ impl State {
             .world
             .chunks
             .iter()
-            .map(|f| f.lock().unwrap())
+            .map(|f| f.read().unwrap())
             .collect::<Vec<_>>();
 
         {

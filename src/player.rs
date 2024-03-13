@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::error::Error;
 use std::f32::consts;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
@@ -42,7 +42,7 @@ pub struct Player {
     pub is_jumping: bool,
     pub jump_action_start: Option<Instant>,
     pub is_ghost: bool,
-    pub facing_block: Option<Arc<Mutex<Block>>>,
+    pub facing_block: Option<Arc<RwLock<Block>>>,
     pub facing_face: Option<FaceDirections>,
 }
 impl Player {

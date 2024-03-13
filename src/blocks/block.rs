@@ -3,8 +3,9 @@ use bytemuck::{Pod, Zeroable};
 use super::block_type::BlockType;
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
-use std::sync::MutexGuard;
+use std::sync::{Arc, MutexGuard, RwLock};
 
+#[derive(Debug)]
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,
@@ -38,10 +39,7 @@ pub enum FaceDirections {
 }
 
 impl FaceDirections {
-    pub fn create_face_data(
-        &self,
-        block: &MutexGuard<'_, Block>,
-    ) -> (Vec<BlockVertexData>, Vec<u32>) {
+    pub fn create_face_data(&self, block: Arc<RwLock<Block>>) -> (Vec<BlockVertexData>, Vec<u32>) {
         let indices = self.get_indices();
 
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
@@ -66,15 +64,16 @@ impl FaceDirections {
             *indices_map = index_of as u32;
         }
 
-        let face_texcoords = block.block_type.get_texcoords(*self);
+        let block_read = block.read().unwrap();
+        let face_texcoords = block_read.block_type.get_texcoords(*self);
         let normals = self.get_normal_vector();
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
             vertex_data.push(BlockVertexData {
                 position: [
-                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block.position.x,
-                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block.position.y,
-                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block.position.z,
+                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.position.x,
+                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.position.y,
+                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.position.z,
                 ],
                 normal: normals.into(),
                 tex_coords: face_texcoords[i],
@@ -86,7 +85,7 @@ impl FaceDirections {
 
     pub fn create_face_data_abs(
         &self,
-        block: &MutexGuard<'_, Block>, // To prevent deadlocks
+        block: Arc<RwLock<Block>>,
     ) -> (Vec<BlockVertexData>, Vec<u32>) {
         let indices = self.get_indices();
 
@@ -112,15 +111,16 @@ impl FaceDirections {
             *indices_map = index_of as u32;
         }
 
-        let face_texcoords = block.block_type.get_texcoords(*self);
+        let block_read = block.read().unwrap();
+        let face_texcoords = block_read.block_type.get_texcoords(*self);
         let normals = self.get_normal_vector();
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
             vertex_data.push(BlockVertexData {
                 position: [
-                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block.absolute_position.x,
-                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block.absolute_position.y,
-                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block.absolute_position.z,
+                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.absolute_position.x,
+                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.absolute_position.y,
+                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.absolute_position.z,
                 ],
                 normal: normals.into(),
                 tex_coords: face_texcoords[i],

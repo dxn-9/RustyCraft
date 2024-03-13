@@ -1,4 +1,5 @@
 use crate::persistance::{Loadable, Saveable};
+use crate::world::WorldChunk;
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
@@ -10,12 +11,12 @@ use crate::{
 use glam::Vec3;
 use std::any::Any;
 use std::error::Error;
-use std::ptr::drop_in_place;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use wgpu::util::DeviceExt;
 
-pub type BlockVec = Vec<Vec<Option<Arc<Mutex<Block>>>>>;
+pub type BlockVec = Vec<Vec<Option<Arc<RwLock<Block>>>>>;
 
+#[derive(Debug)]
 pub struct Chunk {
     pub x: i32,
     pub y: i32,
@@ -28,12 +29,12 @@ pub struct Chunk {
     pub chunk_position_buffer: wgpu::Buffer,
     pub chunk_index_buffer: Option<wgpu::Buffer>,
     pub chunk_vertex_buffer: Option<wgpu::Buffer>,
-    pub outside_blocks: Vec<Arc<Mutex<Block>>>,
+    pub outside_blocks: Vec<Arc<RwLock<Block>>>,
 }
 
 impl Chunk {
-    pub fn add_block(&mut self, block: Arc<Mutex<Block>>) {
-        let block_borrow = block.lock().unwrap();
+    pub fn add_block(&mut self, block: Arc<RwLock<Block>>) {
+        let block_borrow = block.read().unwrap();
 
         let y_blocks = self
             .blocks
@@ -71,7 +72,7 @@ impl Chunk {
         }
         return false;
     }
-    pub fn get_block_at_relative(&self, position: &glam::Vec3) -> Option<Arc<Mutex<Block>>> {
+    pub fn get_block_at_relative(&self, position: &glam::Vec3) -> Option<Arc<RwLock<Block>>> {
         if let Some(y_blocks) = self
             .blocks
             .get(((position.x * CHUNK_SIZE as f32) + position.z) as usize)
@@ -100,16 +101,16 @@ impl Chunk {
             false
         }
     }
-    pub fn build_mesh(&mut self, other_chunks: Vec<Arc<Mutex<Chunk>>>) {
+    pub fn build_mesh(&self, other_chunks: Vec<WorldChunk>) -> (u32, wgpu::Buffer, wgpu::Buffer) {
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                let region = &self.blocks[(x * CHUNK_SIZE + z) as usize];
+                let region = &self.blocks[((x * CHUNK_SIZE) + z) as usize];
                 for y in 0..region.len() {
                     let block = &region[y];
-                    if let Some(block) = block {
-                        let block = block.lock().unwrap();
+                    if let Some(block_ptr) = block {
+                        let block = block_ptr.read().unwrap();
                         let position = block.position;
                         let faces = FaceDirections::all();
 
@@ -132,12 +133,15 @@ impl Chunk {
                                 );
 
                                 let target_chunk = other_chunks.iter().find(|c| {
-                                    let c = c.lock().unwrap();
+                                    let c = c.read().unwrap();
                                     c.x == target_chunk_x && c.y == target_chunk_y
                                 });
+                                // If there's a chunk loaded in memory then check that, else it means we're on a edge and we can
+                                // Calculate the block's height when the chunk gets generated
+                                // TODO: Check for saved file chunk
                                 match target_chunk {
                                     Some(chunk) => {
-                                        let chunk = chunk.lock().unwrap();
+                                        let chunk = chunk.read().unwrap();
                                         if Chunk::exists_block_at(&chunk.blocks, &target_block) {
                                             is_visible = false;
                                         }
@@ -161,7 +165,8 @@ impl Chunk {
                             }
 
                             if is_visible {
-                                let (mut vertex_data, index_data) = face.create_face_data(&block);
+                                let (mut vertex_data, index_data) =
+                                    face.create_face_data(block_ptr.clone());
                                 vertex.append(&mut vertex_data);
                                 let indices_offset = vertex.len() as u32 - 4;
                                 indices.append(
@@ -189,9 +194,11 @@ impl Chunk {
                     usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 });
 
-        self.indices = indices.len() as u32;
-        self.chunk_vertex_buffer = Some(chunk_vertex_buffer);
-        self.chunk_index_buffer = Some(chunk_index_buffer);
+        (
+            indices.len() as u32,
+            chunk_vertex_buffer,
+            chunk_index_buffer,
+        )
     }
     pub fn get_bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
@@ -246,7 +253,7 @@ impl Chunk {
                         b => b,
                     };
 
-                    let block = Arc::new(Mutex::new(Block::new(
+                    let block = Arc::new(RwLock::new(Block::new(
                         glam::vec3(x as f32, y as f32, z as f32),
                         (chunk_x, chunk_y),
                         block_type,
@@ -277,14 +284,14 @@ impl Chunk {
                 .expect("TODO: Fix this case -h")
                 .as_ref()
                 .unwrap()
-                .lock()
+                .read()
                 .unwrap()
                 .absolute_position;
 
             let tree_blocks = crate::structures::Tree::get_blocks(highest_block);
 
             for block in tree_blocks.iter() {
-                let block_brw = block.lock().unwrap();
+                let block_brw = block.read().unwrap();
                 let block_chunk = block_brw.get_chunk_coords();
                 std::mem::drop(block_brw);
                 if block_chunk == (self.x, self.y) {
@@ -303,8 +310,7 @@ impl Chunk {
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
         chunk_data_layout: Arc<wgpu::BindGroupLayout>,
-        other_chunks: Vec<Arc<Mutex<Chunk>>>,
-    ) -> Self {
+    ) -> Chunk {
         let mut was_loaded = false;
         let blocks = if let Ok(blocks) = Self::load(Box::new((x, y))) {
             was_loaded = true;
@@ -327,6 +333,7 @@ impl Chunk {
                 resource: chunk_position_buffer.as_entire_binding(),
             }],
         });
+
         let mut chunk = Chunk {
             blocks,
             x,
@@ -345,8 +352,6 @@ impl Chunk {
         if !was_loaded {
             chunk.place_trees();
         }
-        chunk.build_mesh(other_chunks);
-
         return chunk;
     }
 }
@@ -361,7 +366,7 @@ impl Saveable<Chunk> for Chunk {
         for col in self.blocks.iter() {
             for block in col.iter() {
                 if let Some(block_ptr) = block {
-                    let blockbrw = block_ptr.lock().unwrap();
+                    let blockbrw = block_ptr.read().unwrap();
                     data += &format!(
                         "{},{},{},{}\n",
                         blockbrw.position.x,
@@ -404,7 +409,7 @@ impl Loadable<BlockVec> for Chunk {
                 let x = coords.next().unwrap().parse::<i32>()?;
                 let y = coords.next().unwrap().parse::<i32>()?;
 
-                let mut blocks: BlockVec = vec![];
+                let mut blocks: BlockVec = vec![vec![]; (CHUNK_SIZE * CHUNK_SIZE) as usize];
                 if *chunk_position == (x, y) {
                     let file_contents = std::fs::read_to_string(format!("data/chunk{}_{}", x, y))?;
                     for line in file_contents.lines() {
@@ -421,13 +426,6 @@ impl Loadable<BlockVec> for Chunk {
                             block_type,
                         );
 
-                        if let None = blocks.get_mut(
-                            (block.position.x as u32 * CHUNK_SIZE + block.position.z as u32)
-                                as usize,
-                        ) {
-                            // This works only because chunks rows are in order
-                            blocks.push(vec![]);
-                        }
                         let y_blocks = blocks
                             .get_mut(
                                 (block.position.x as u32 * CHUNK_SIZE + block.position.z as u32)
@@ -443,7 +441,7 @@ impl Loadable<BlockVec> for Chunk {
                                 y_blocks.push(None);
                             }
                         }
-                        y_blocks[y_position] = Some(Arc::new(Mutex::new(block)));
+                        y_blocks[y_position] = Some(Arc::new(RwLock::new(block)));
                     }
                     return Ok(blocks);
                 }

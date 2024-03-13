@@ -41,14 +41,14 @@ impl UI {
         }
     }
     pub fn update(&mut self, player: &Player, queue: Arc<wgpu::Queue>, device: Arc<wgpu::Device>) {
-        if let Some(facing_block) = player.facing_block.as_ref() {
-            let block = facing_block.lock().unwrap();
+        if let Some(block_ptr) = player.facing_block.as_ref() {
+            let block = block_ptr.read().unwrap();
 
             let face_data = FaceDirections::all()
                 .iter()
                 .find(|f| **f == player.facing_face.unwrap())
                 .unwrap()
-                .create_face_data_abs(&block);
+                .create_face_data_abs(block_ptr.clone());
 
             let blocks_position = face_data.0.iter().map(|v| v.position).collect::<Vec<_>>();
 
