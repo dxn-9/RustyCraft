@@ -87,7 +87,6 @@ impl World {
             .expect("Cannot delete a block from unloaded chunk");
 
         chunks_to_rerender.push(chunk.clone());
-        std::mem::drop(block_borrow);
         let mut chunk_lock = chunk.write().unwrap();
         chunk_lock.add_block(block.clone());
 

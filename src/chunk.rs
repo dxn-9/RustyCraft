@@ -166,7 +166,7 @@ impl Chunk {
 
                             if is_visible {
                                 let (mut vertex_data, index_data) =
-                                    face.create_face_data(block_ptr.clone());
+                                    face.create_face_data(block_ptr.clone(), &self.blocks.clone());
                                 vertex.append(&mut vertex_data);
                                 let indices_offset = vertex.len() as u32 - 4;
                                 indices.append(
@@ -178,6 +178,7 @@ impl Chunk {
                 }
             }
         }
+
 
         let chunk_vertex_buffer =
             self.device
@@ -293,7 +294,6 @@ impl Chunk {
             for block in tree_blocks.iter() {
                 let block_brw = block.read().unwrap();
                 let block_chunk = block_brw.get_chunk_coords();
-                std::mem::drop(block_brw);
                 if block_chunk == (self.x, self.y) {
                     self.add_block(block.clone());
                 } else {

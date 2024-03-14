@@ -214,7 +214,6 @@ impl State {
                     let new_block_abs_position =
                         block_borrow.absolute_position + facing_face.get_normal_vector();
 
-                    std::mem::drop(block_borrow); /* Prevent deadlock since we'll be using when building the mesh */
                     let chunk = new_block_abs_position.get_chunk_from_position_absolute();
                     let position = new_block_abs_position.relative_from_absolute();
 

@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
 use super::block_type::BlockType;
+use crate::chunk::BlockVec;
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
 use std::sync::{Arc, MutexGuard, RwLock};
@@ -39,7 +40,11 @@ pub enum FaceDirections {
 }
 
 impl FaceDirections {
-    pub fn create_face_data(&self, block: Arc<RwLock<Block>>) -> (Vec<BlockVertexData>, Vec<u32>) {
+    pub fn create_face_data(
+        &self,
+        block: Arc<RwLock<Block>>,
+        blocks: &BlockVec,
+    ) -> (Vec<BlockVertexData>, Vec<u32>) {
         let indices = self.get_indices();
 
         let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
@@ -75,53 +80,7 @@ impl FaceDirections {
                     CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.position.y,
                     CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.position.z,
                 ],
-                normal: normals.into(),
-                tex_coords: face_texcoords[i],
-            })
-        });
-
-        (vertex_data, indices_map)
-    }
-
-    pub fn create_face_data_abs(
-        &self,
-        block: Arc<RwLock<Block>>,
-    ) -> (Vec<BlockVertexData>, Vec<u32>) {
-        let indices = self.get_indices();
-
-        let mut unique_indices: Vec<u32> = Vec::with_capacity(4);
-
-        let mut vertex_data: Vec<BlockVertexData> = Vec::with_capacity(4);
-
-        let mut indices_map: Vec<u32> = vec![0; 6];
-
-        for ind in indices.iter() {
-            if unique_indices.contains(ind) {
-                continue;
-            } else {
-                unique_indices.push(*ind);
-            }
-        }
-        for (i, indices_map) in indices_map.iter_mut().enumerate() {
-            let index_of = unique_indices
-                .iter()
-                .enumerate()
-                .find_map(|(k, ind)| if *ind == indices[i] { Some(k) } else { None })
-                .unwrap();
-            *indices_map = index_of as u32;
-        }
-
-        let block_read = block.read().unwrap();
-        let face_texcoords = block_read.block_type.get_texcoords(*self);
-        let normals = self.get_normal_vector();
-
-        unique_indices.iter().enumerate().for_each(|(i, index)| {
-            vertex_data.push(BlockVertexData {
-                position: [
-                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.absolute_position.x,
-                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.absolute_position.y,
-                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.absolute_position.z,
-                ],
+                ao: 0.0,
                 normal: normals.into(),
                 tex_coords: face_texcoords[i],
             })
@@ -137,6 +96,7 @@ pub struct BlockVertexData {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub tex_coords: [f32; 2],
+    pub ao: f32,
 }
 
 impl Block {

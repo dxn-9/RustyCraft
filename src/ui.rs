@@ -48,9 +48,20 @@ impl UI {
                 .iter()
                 .find(|f| **f == player.facing_face.unwrap())
                 .unwrap()
-                .create_face_data_abs(block_ptr.clone());
+                .create_face_data(block_ptr.clone(), &vec![]);
 
-            let blocks_position = face_data.0.iter().map(|v| v.position).collect::<Vec<_>>();
+            let blocks_position = face_data
+                .0
+                .iter()
+                .map(|v| {
+                    [
+                        // TODO: This is kinda ugly
+                        v.position[0] + (block.absolute_position.x - block.position.x),
+                        v.position[1] + (block.absolute_position.y - block.position.y),
+                        v.position[2] + (block.absolute_position.z - block.position.z),
+                    ]
+                })
+                .collect::<Vec<_>>();
 
             self.indices = face_data.1.len();
             queue.write_buffer(
