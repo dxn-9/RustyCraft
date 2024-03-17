@@ -6,7 +6,7 @@ use std::{
     thread,
 };
 
-use crate::persistance::Saveable;
+use crate::persistence::Saveable;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
@@ -247,8 +247,19 @@ impl World {
                 }
             }
 
+            // Save the unloaded chunks
+            let (sender, receiver) = mpsc::channel();
             for (o, index) in indices_to_remove.iter().enumerate() {
-                self.chunks.remove(index - o);
+                let chunk = self.chunks.remove(index - o);
+                let sender = sender.clone();
+                self.thread_pool.as_ref().unwrap().execute(move || {
+                    chunk.write().unwrap().save().unwrap();
+                    sender.send(()).unwrap();
+                })
+            }
+
+            for _ in indices_to_remove.iter() {
+                receiver.recv().unwrap();
             }
 
             let chunks_added = new_chunks_positions.len();

@@ -1,4 +1,4 @@
-use crate::persistance::{Loadable, Saveable};
+use crate::persistence::{Loadable, Saveable};
 use crate::world::WorldChunk;
 use crate::{
     blocks::{
@@ -10,11 +10,14 @@ use crate::{
 };
 use glam::Vec3;
 use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::error::Error;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use wgpu::util::DeviceExt;
 
-pub type BlockVec = Vec<Vec<Option<Arc<RwLock<Block>>>>>;
+pub type BlockVec = Arc<RwLock<Vec<Vec<Option<Arc<RwLock<Block>>>>>>>;
 
 #[derive(Debug)]
 pub struct Chunk {
@@ -35,34 +38,38 @@ pub struct Chunk {
 impl Chunk {
     pub fn add_block(&mut self, block: Arc<RwLock<Block>>) {
         let block_borrow = block.read().unwrap();
+        let block_position = block_borrow.position;
+        std::mem::drop(block_borrow);
+        let mut blocks_borrow = self.blocks.write().unwrap();
 
-        let y_blocks = self
-            .blocks
-            .get_mut(
-                ((block_borrow.position.x * CHUNK_SIZE as f32) + block_borrow.position.z) as usize,
-            )
+        let y_blocks = blocks_borrow
+            .get_mut(((block_position.x * CHUNK_SIZE as f32) + block_position.z) as usize)
             .expect("Cannot add oob block");
 
         let start_len = y_blocks.len();
 
         /* Make sure we don't have enough space in the vector */
-        for i in start_len..=block_borrow.position.y as usize {
+        for i in start_len..=block_position.y as usize {
             if i >= y_blocks.len() {
                 y_blocks.push(None);
             }
         }
-        y_blocks[block_borrow.position.y as usize] = Some(block.clone());
+
+        y_blocks[block_position.y as usize] = Some(block);
     }
     pub fn remove_block(&mut self, block_r_position: &Vec3) {
-        let y_blocks = self
-            .blocks
+        let mut blocks_borrow = self.blocks.write().unwrap();
+        let y_blocks = blocks_borrow
             .get_mut(((block_r_position.x * CHUNK_SIZE as f32) + block_r_position.z) as usize)
             .expect("Cannot delete oob block");
         y_blocks[block_r_position.y as usize] = None;
     }
-    pub fn exists_block_at(blocks: &BlockVec, position: &glam::Vec3) -> bool {
-        if let Some(y_blocks) =
-            blocks.get(((position.x as u32 * CHUNK_SIZE) + position.z as u32) as usize)
+    pub fn exists_block_at(&self, position: &glam::Vec3) -> bool {
+        if let Some(y_blocks) = self
+            .blocks
+            .read()
+            .unwrap()
+            .get(((position.x as u32 * CHUNK_SIZE) + position.z as u32) as usize)
         {
             if let Some(block_opt) = y_blocks.get(position.y as usize) {
                 if let Some(_) = block_opt {
@@ -75,6 +82,8 @@ impl Chunk {
     pub fn get_block_at_relative(&self, position: &glam::Vec3) -> Option<Arc<RwLock<Block>>> {
         if let Some(y_blocks) = self
             .blocks
+            .read()
+            .unwrap()
             .get(((position.x * CHUNK_SIZE as f32) + position.z) as usize)
         {
             if let Some(block) = y_blocks.get(position.y as usize)? {
@@ -104,81 +113,87 @@ impl Chunk {
     pub fn build_mesh(&self, other_chunks: Vec<WorldChunk>) -> (u32, wgpu::Buffer, wgpu::Buffer) {
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                let region = &self.blocks[((x * CHUNK_SIZE) + z) as usize];
-                for y in 0..region.len() {
-                    let block = &region[y];
-                    if let Some(block_ptr) = block {
-                        let block = block_ptr.read().unwrap();
-                        let position = block.position;
-                        let faces = FaceDirections::all();
+        let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> = vec![((self.x, self.y), self.blocks.clone())];
 
-                        for face in faces.iter() {
-                            let mut is_visible = true;
-                            let face_position = face.get_normal_vector() + position;
+        for chunk in &other_chunks {
+            let chunk_read = chunk.read().unwrap();
+            if chunk_read.x == self.x + 1 || chunk_read.x == self.x - 1 {
+                adjacent_chunks.push(((chunk_read.x, chunk_read.y), chunk_read.blocks.clone()));
+            } else if chunk_read.y == self.y + 1 || chunk_read.y == self.y - 1 {
+                adjacent_chunks.push(((chunk_read.x, chunk_read.y), chunk_read.blocks.clone()));
+            }
+        }
 
-                            if Chunk::is_outside_bounds(&face_position) {
-                                is_visible = false;
-                            } else if Chunk::is_outside_chunk(&face_position) {
-                                let target_chunk_x = self.x
-                                    + (f32::floor(face_position.x / CHUNK_SIZE as f32) as i32);
-                                let target_chunk_y = self.y
-                                    + (f32::floor(face_position.z / CHUNK_SIZE as f32) as i32);
+        for region in self.blocks.read().unwrap().iter() {
+            for y in 0..region.len() {
+                if let Some(block_ptr) = &region[y] {
+                    let block = block_ptr.read().unwrap();
+                    let position = block.position;
+                    let faces = FaceDirections::all();
 
-                                let target_block = glam::vec3(
-                                    (face_position.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                                    face_position.y,
-                                    (face_position.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-                                );
+                    for face in faces.iter() {
+                        let mut is_visible = true;
+                        let face_position = face.get_normal_vector() + position;
 
-                                let target_chunk = other_chunks.iter().find(|c| {
-                                    let c = c.read().unwrap();
-                                    c.x == target_chunk_x && c.y == target_chunk_y
-                                });
-                                // If there's a chunk loaded in memory then check that, else it means we're on a edge and we can
-                                // Calculate the block's height when the chunk gets generated
-                                // TODO: Check for saved file chunk
-                                match target_chunk {
-                                    Some(chunk) => {
-                                        let chunk = chunk.read().unwrap();
-                                        if Chunk::exists_block_at(&chunk.blocks, &target_block) {
-                                            is_visible = false;
-                                        }
-                                    }
-                                    None => {
-                                        if face_position.y as u32
-                                            <= Chunk::get_height_value(
-                                                target_chunk_x,
-                                                target_chunk_y,
-                                                target_block.x as u32,
-                                                target_block.z as u32,
-                                                self.noise_data.clone(),
-                                            )
-                                        {
-                                            is_visible = false
-                                        };
+                        if Chunk::is_outside_bounds(&face_position) {
+                            is_visible = false;
+                        } else if Chunk::is_outside_chunk(&face_position) {
+                            let target_chunk_x =
+                                self.x + (f32::floor(face_position.x / CHUNK_SIZE as f32) as i32);
+                            let target_chunk_y =
+                                self.y + (f32::floor(face_position.z / CHUNK_SIZE as f32) as i32);
+
+                            let target_block = glam::vec3(
+                                (face_position.x + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                                face_position.y,
+                                (face_position.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
+                            );
+
+                            let target_chunk = other_chunks.iter().find(|c| {
+                                let c = c.read().unwrap();
+                                c.x == target_chunk_x && c.y == target_chunk_y
+                            });
+                            // If there's a chunk loaded in memory then check that, else it means we're on a edge and we can
+                            // Calculate the block's height when the chunk gets generated
+                            // TODO: Check for saved file chunk
+                            match target_chunk {
+                                Some(chunk) => {
+                                    let chunk = chunk.read().unwrap();
+                                    if chunk.exists_block_at(&target_block) {
+                                        is_visible = false;
                                     }
                                 }
-                            } else if Chunk::exists_block_at(&self.blocks, &face_position) {
-                                is_visible = false;
+                                None => {
+                                    if face_position.y as u32
+                                        <= Chunk::get_height_value(
+                                            target_chunk_x,
+                                            target_chunk_y,
+                                            target_block.x as u32,
+                                            target_block.z as u32,
+                                            self.noise_data.clone(),
+                                        )
+                                    {
+                                        is_visible = false
+                                    };
+                                }
                             }
+                        } else if self.exists_block_at(&face_position) {
+                            is_visible = false;
+                        }
 
-                            if is_visible {
-                                let (mut vertex_data, index_data) =
-                                    face.create_face_data(block_ptr.clone(), &self.blocks.clone());
-                                vertex.append(&mut vertex_data);
-                                let indices_offset = vertex.len() as u32 - 4;
-                                indices.append(
-                                    &mut index_data.iter().map(|i| i + indices_offset).collect(),
-                                )
-                            }
+                        if is_visible {
+                            let (mut vertex_data, index_data) =
+                                face.create_face_data(block_ptr.clone(), &adjacent_chunks);
+                            vertex.append(&mut vertex_data);
+                            let indices_offset = vertex.len() as u32 - 4;
+                            indices.append(
+                                &mut index_data.iter().map(|i| i + indices_offset).collect(),
+                            )
                         }
                     }
                 }
             }
         }
-
 
         let chunk_vertex_buffer =
             self.device
@@ -240,12 +255,10 @@ impl Chunk {
 
     pub fn create_blocks_data(chunk_x: i32, chunk_y: i32, noise_data: Arc<NoiseData>) -> BlockVec {
         let size = (CHUNK_SIZE * CHUNK_SIZE) as usize;
-        let mut blocks: BlockVec = Vec::with_capacity(size);
+        let mut blocks: BlockVec = Arc::new(RwLock::new(vec![vec![]; size]));
 
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                blocks.push(vec![]);
-
                 let y_top = Chunk::get_height_value(chunk_x, chunk_y, x, z, noise_data.clone());
 
                 for y in 0..=y_top {
@@ -260,7 +273,7 @@ impl Chunk {
                         block_type,
                     )));
 
-                    let curr = &mut blocks[((x * CHUNK_SIZE) + z) as usize];
+                    let curr = &mut blocks.write().unwrap()[((x * CHUNK_SIZE) + z) as usize];
                     curr.push(Some(block.clone()));
                 }
             }
@@ -272,12 +285,12 @@ impl Chunk {
         let number_of_trees = rand::random::<f32>();
         let number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
 
-        for i in 0..number_of_trees {
+        for _ in 0..number_of_trees {
             let x = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
             let z = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
 
-            let block_column = self
-                .blocks
+            let blocks_read = self.blocks.read().unwrap();
+            let block_column = blocks_read
                 .get((x * CHUNK_SIZE as usize) + z)
                 .expect("TODO: fix this case");
             let highest_block = block_column
@@ -288,6 +301,7 @@ impl Chunk {
                 .read()
                 .unwrap()
                 .absolute_position;
+            std::mem::drop(blocks_read);
 
             let tree_blocks = crate::structures::Tree::get_blocks(highest_block);
 
@@ -363,7 +377,7 @@ impl Saveable<Chunk> for Chunk {
         }
         let mut data = String::new();
 
-        for col in self.blocks.iter() {
+        for col in self.blocks.read().unwrap().iter() {
             for block in col.iter() {
                 if let Some(block_ptr) = block {
                     let blockbrw = block_ptr.read().unwrap();
@@ -380,16 +394,8 @@ impl Saveable<Chunk> for Chunk {
 
         let chunk_file_name = format!("data/chunk{}_{}", self.x, self.y);
         std::fs::write(chunk_file_name.clone(), data.as_bytes())?;
-        println!("WROTE FILE {:?}", chunk_file_name);
 
         Ok(())
-    }
-}
-
-// Whenever a chunk gets dropped save it
-impl Drop for Chunk {
-    fn drop(&mut self) {
-        let _ = self.save();
     }
 }
 
@@ -409,7 +415,8 @@ impl Loadable<BlockVec> for Chunk {
                 let x = coords.next().unwrap().parse::<i32>()?;
                 let y = coords.next().unwrap().parse::<i32>()?;
 
-                let mut blocks: BlockVec = vec![vec![]; (CHUNK_SIZE * CHUNK_SIZE) as usize];
+                let size = (CHUNK_SIZE * CHUNK_SIZE) as usize;
+                let mut blocks: BlockVec = Arc::new(RwLock::new(vec![vec![]; size]));
                 if *chunk_position == (x, y) {
                     let file_contents = std::fs::read_to_string(format!("data/chunk{}_{}", x, y))?;
                     for line in file_contents.lines() {
@@ -425,23 +432,16 @@ impl Loadable<BlockVec> for Chunk {
                             (x, y),
                             block_type,
                         );
-
-                        let y_blocks = blocks
-                            .get_mut(
-                                (block.position.x as u32 * CHUNK_SIZE + block.position.z as u32)
-                                    as usize,
-                            )
-                            .unwrap();
-
+                        let y_blocks =
+                            &mut blocks.write().unwrap()[((bx * CHUNK_SIZE) + bz) as usize];
                         let start_len = y_blocks.len();
-                        let y_position = block.position.y as usize;
 
-                        for i in start_len..=y_position {
+                        for i in start_len..=by as usize {
                             if i >= y_blocks.len() {
                                 y_blocks.push(None);
                             }
                         }
-                        y_blocks[y_position] = Some(Arc::new(RwLock::new(block)));
+                        y_blocks[by as usize] = Some(Arc::new(RwLock::new(block)));
                     }
                     return Ok(blocks);
                 }

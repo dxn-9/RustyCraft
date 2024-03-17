@@ -1,7 +1,9 @@
 use bytemuck::{Pod, Zeroable};
+use std::collections::HashMap;
 
 use super::block_type::BlockType;
 use crate::chunk::BlockVec;
+use crate::effects::ao::{convert_ao_u8_to_f32, from_vertex_position};
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
 use std::sync::{Arc, MutexGuard, RwLock};
@@ -43,7 +45,7 @@ impl FaceDirections {
     pub fn create_face_data(
         &self,
         block: Arc<RwLock<Block>>,
-        blocks: &BlockVec,
+        blocks: &Vec<((i32, i32), BlockVec)>,
     ) -> (Vec<BlockVertexData>, Vec<u32>) {
         let indices = self.get_indices();
 
@@ -74,13 +76,19 @@ impl FaceDirections {
         let normals = self.get_normal_vector();
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
+            let vertex_position = glam::vec3(
+                CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.absolute_position.x,
+                CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.absolute_position.y,
+                CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.absolute_position.z,
+            );
+
             vertex_data.push(BlockVertexData {
                 position: [
                     CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.position.x,
                     CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.position.y,
                     CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.position.z,
                 ],
-                ao: 0.0,
+                ao: convert_ao_u8_to_f32(from_vertex_position(&vertex_position, &blocks)),
                 normal: normals.into(),
                 tex_coords: face_texcoords[i],
             })
@@ -165,6 +173,12 @@ impl Block {
                     format: wgpu::VertexFormat::Float32x2,
                     offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
                     shader_location: 2,
+                },
+                // Ao
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 3,
                 },
             ],
         }

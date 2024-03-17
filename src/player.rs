@@ -8,7 +8,7 @@ use glam::{vec2, vec3, Mat2, Vec2, Vec3};
 
 use crate::blocks::block::{Block, FaceDirections};
 use crate::collision::{CollisionPoint, RayResult};
-use crate::persistance::{Loadable, Saveable};
+use crate::persistence::{Loadable, Saveable};
 use crate::{
     collision::CollisionBox,
     world::{World, CHUNK_SIZE},
@@ -281,7 +281,6 @@ impl Saveable<glam::Vec3> for Camera {
 
         let player_file_name = "data/player";
         std::fs::write(player_file_name, data.as_bytes())?;
-        println!("WROTE FILE {:?}", player_file_name);
 
         Ok(())
     }

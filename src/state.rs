@@ -4,7 +4,7 @@ use std::{f32::consts, sync::Arc};
 use crate::blocks::block::Block;
 use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
-use crate::persistance::Saveable;
+use crate::persistence::Saveable;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{

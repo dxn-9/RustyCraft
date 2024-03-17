@@ -5,7 +5,8 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tex_coords: vec2<f32>,
-    
+    @location(3) ao: f32,
+
 }
 struct InstanceInput {
     // @location(2) instance_transform: vec3<f32>,
@@ -18,7 +19,8 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) normals: vec3<f32>,
     @location(2) chunk_position: vec2<i32>,
-    @location(3) block_type: u32
+    @location(3) block_type: u32,
+    @location(4) ao: f32
 }
 
 
@@ -39,6 +41,7 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     out.clip_position = projection * view * (vec4<f32>(in.position.xyz, 1.0) + chunk_offset);
     out.normals = in.normal;
     out.tex_coords = in.tex_coords;
+    out.ao = in.ao;
 
     return out;
 }
@@ -53,7 +56,8 @@ struct FragmentInput {
         @location(0) tex_coords: vec2<f32>,
         @location(1) normals: vec3<f32>,
         @location(2) current_chunk: vec2<i32>,
-        @location(3) block_type: u32
+        @location(3) block_type: u32,
+        @location(4) ao: f32
 }
 
 const light_direction = vec3<f32>(0.25, 1.0, -0.5);
@@ -66,6 +70,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     color = textureSample(diffuse, t_sampler, in.tex_coords);
     color *= max(dot(in.normals, normalize(light_direction)), 0.2);
     color += vec4<f32>(vec3<f32>(ambient_light), 0.0);
+    color *= 1.0 - in.ao;
 
     return color;
 }

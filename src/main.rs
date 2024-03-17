@@ -33,8 +33,10 @@ extern crate lazy_static;
 pub mod blocks;
 pub mod chunk;
 pub mod collision;
+pub mod effects;
+pub mod macros;
 pub mod material;
-mod persistance;
+pub mod persistence;
 pub mod pipeline;
 pub mod player;
 pub mod state;
@@ -49,6 +51,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let start = Instant::now();
     let mut total_time = start.elapsed();
     let mut delta_time = start.elapsed();
+
+    let mut frames = 0;
+    let mut fps_counter = Instant::now();
 
     let mut size = window.inner_size();
     size.width = size.width.max(1);
@@ -119,6 +124,14 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     }
                     WindowEvent::CursorLeft { .. } => cursor_in = false,
                     WindowEvent::RedrawRequested => {
+                        frames += 1;
+
+                        if fps_counter.elapsed().as_secs() >= 3 {
+                            fps_counter = Instant::now();
+                            println!("\x1b[32mFPS - {}\x1b[0m", frames / 3);
+                            frames = 0;
+                        }
+
                         delta_time = start.elapsed() - total_time;
                         total_time = start.elapsed();
 

@@ -1,5 +1,6 @@
 use crate::world::CHUNK_SIZE;
 use glam::{vec3, Vec3};
+use num_traits::FromPrimitive;
 
 fn fade(t: f32) -> f32 {
     ((6.0 * t - 15.) * t + 10.) * t * t * t
@@ -164,14 +165,6 @@ pub(crate) mod threadpool {
     }
 }
 
-// https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
-fn calc_vertex_ao(side1: bool, side2: bool, up: bool) -> u8 {
-    if side1 && side2 {
-        return 0;
-    }
-    return 3 - (side1 as u8 + side2 as u8 + up as u8);
-}
-
 /* Utility traits */
 pub trait ChunkFromPosition {
     fn get_chunk_from_position_absolute(&self) -> (i32, i32);
@@ -201,53 +194,8 @@ impl ChunkFromPosition for glam::Vec3 {
 }
 
 mod tests {
-    use crate::utils::{calc_vertex_ao, ChunkFromPosition, RelativeFromAbsolute};
+    use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
     use glam::vec3;
-    #[test]
-    fn should_calculate_the_correct_ao() {
-        let vertex_position = vec3(0.5, 0.5, 0.5); // Belongs to voxel 0,0,0
-        let neighbour_voxels = [vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0)];
-
-        let has_side1 = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 1.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 0.0),
-        ));
-        let has_side2 = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 0.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 1.0),
-        ));
-        let has_corner = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 1.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 1.0),
-        ));
-        let vao = calc_vertex_ao(has_side1, has_side2, has_corner);
-
-        assert_eq!(vao, 1);
-
-        let vertex_position = vec3(0.5, 0.5, -0.5); // Belongs to voxel 0,0,0
-
-        let has_side1 = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 1.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 0.0),
-        ));
-        let has_side2 = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 0.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 1.0),
-        ));
-        let has_corner = neighbour_voxels.contains(&vec3(
-            f32::floor(vertex_position.x + 1.0),
-            f32::floor(vertex_position.y + 1.0),
-            f32::floor(vertex_position.z + 1.0),
-        ));
-        let vao = calc_vertex_ao(has_side1, has_side2, has_corner);
-        assert_eq!(vao, 2)
-    }
-
     #[test]
     fn should_get_the_correct_chunk_from_position_absolute() {
         let absolute_position = glam::vec3(17.0, 0.0, 20.0);

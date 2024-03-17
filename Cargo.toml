@@ -17,6 +17,7 @@ glam = { version = "0.24.2", features = ["bytemuck"] }
 obj-rs = "0.7.1"
 lazy_static = "1.4.0"
 rand = "0.8.5"
+num-traits = "0.2.18"
 
 [dependencies.image]
 version = "0.24.7"
