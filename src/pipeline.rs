@@ -173,6 +173,7 @@ impl Pipeline {
                         &bind_group_0_layout,
                         &bind_group_1_layout,
                         &state.world.chunk_data_layout,
+                        &state.player.read().unwrap().camera.position_bind_group_layout
                     ],
                     push_constant_ranges: &[],
                 });
@@ -244,7 +245,6 @@ impl PipelineTrait for Pipeline {
     fn bind_group_0(&self) -> &BindGroup {
         &self.bind_group_0
     }
-
     fn bind_group_1(&self) -> &BindGroup {
         &self.bind_group_1
     }

@@ -66,10 +66,16 @@ impl State {
             view_formats: vec![],
         };
 
-        let camera = Camera::new(surface_config.width as f32, surface_config.height as f32);
+        let camera = Camera::new(
+            surface_config.width as f32,
+            surface_config.height as f32,
+            device.clone(),
+            queue.clone(),
+        );
+        let current_chunk = camera.eye.get_chunk_from_position_absolute();
         let player = Arc::new(RwLock::new(Player {
             camera,
-            current_chunk: (0, 0),
+            current_chunk,
             is_jumping: false,
             on_ground: false,
             facing_block: None,
@@ -84,7 +90,7 @@ impl State {
         };
 
         let mut world = World::init_world(device.clone(), queue.clone());
-        world.init_chunks();
+        world.init_chunks(Arc::clone(&player));
         let ui = UI::new(device.clone(), queue.clone());
 
         let mut state = Self {
@@ -254,6 +260,7 @@ impl State {
             delta_time,
             &collisions,
         );
+        player.update();
         if let Some((block, face_dir)) = player.get_facing_block(&collisions) {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
 
@@ -309,6 +316,8 @@ impl State {
             .map(|f| f.read().unwrap())
             .collect::<Vec<_>>();
 
+        let player = self.player.read().unwrap();
+
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -342,6 +351,8 @@ impl State {
 
             rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
             rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+
+            rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
 
             for chunk in chunks.iter() {
                 if chunk.visible {

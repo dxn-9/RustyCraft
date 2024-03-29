@@ -317,7 +317,7 @@ impl World {
                     sender.send(()).unwrap();
                 });
             }
-            for _ in self.chunks.iter(){
+            for _ in self.chunks.iter() {
                 receiver.recv().unwrap();
             }
         }
@@ -332,12 +332,13 @@ impl World {
             chunkbrw.save().expect("failed to save");
         }
     }
-    pub fn init_chunks(&mut self) {
+    pub fn init_chunks(&mut self, player: Arc<RwLock<Player>>) {
         let (sender, receiver) = mpsc::channel();
+        let player = player.read().unwrap();
 
         let mut chunks = vec![];
-        for chunk_x in LB..=UB {
-            for chunk_y in LB..=UB {
+        for chunk_x in LB + player.current_chunk.0..=UB + player.current_chunk.0 {
+            for chunk_y in LB + player.current_chunk.1..=UB + player.current_chunk.1 {
                 let sender = sender.clone();
                 let noise_data = Arc::clone(&self.noise_data);
                 let chunk_data_layout = Arc::clone(&self.chunk_data_layout);

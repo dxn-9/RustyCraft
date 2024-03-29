@@ -5,6 +5,8 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use glam::{vec2, vec3, Mat2, Vec2, Vec3};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::BindGroupLayout;
 
 use crate::blocks::block::{Block, FaceDirections};
 use crate::collision::{CollisionPoint, RayResult};
@@ -46,6 +48,13 @@ pub struct Player {
     pub facing_face: Option<FaceDirections>,
 }
 impl Player {
+    pub fn update(&mut self) {
+        self.camera.queue.write_buffer(
+            &self.camera.position_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera.eye]),
+        )
+    }
     // Position relative to the chunk
     pub fn to_relative_position(&self) -> glam::Vec3 {
         todo!();
@@ -220,21 +229,64 @@ pub struct Camera {
     pub znear: f32,
     pub zfar: f32,
     pub needs_update: bool,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+    pub position_buffer: wgpu::Buffer,
+    pub position_bind_group: wgpu::BindGroup,
+    pub position_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl Camera {
-    pub fn new(surface_width: f32, surface_height: f32) -> Camera {
+    pub fn new(
+        surface_width: f32,
+        surface_height: f32,
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+    ) -> Camera {
         let (eye, yaw, pitch) = if let Ok((eye, yaw, pitch)) = Camera::load(Box::new(())) {
             (eye, yaw, pitch)
         } else {
             (glam::vec3(-4.0, 50.0, 4.0), consts::FRAC_PI_2, 0.0)
         };
+
+        let position_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&[eye]),
+            label: Some("camera-position"),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let position_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("camera-position-layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let position_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &position_bind_group_layout,
+            label: Some("camera-position-layout"),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: position_buffer.as_entire_binding(),
+            }],
+        });
+
         Self {
+            position_bind_group_layout,
+            position_bind_group,
+            position_buffer,
             aspect_ratio: surface_width / surface_height,
+            device,
+            queue,
             eye,
             yaw,
             pitch,
-
             fovy: consts::FRAC_PI_4,
             znear: 0.1,
             zfar: 1000.,
