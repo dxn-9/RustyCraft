@@ -47,8 +47,8 @@ impl Pipeline {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(shader_source.into()),
             });
-
-        let uniforms = Uniforms::from(&state.player.camera);
+        let camera = &state.player.read().unwrap().camera;
+        let uniforms = Uniforms::from(camera);
 
         let projection_buffer =
             state

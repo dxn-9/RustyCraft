@@ -1,6 +1,6 @@
 use glam::Vec3;
 use std::ops::{Deref, DerefMut};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 use std::{
     sync::{mpsc, Arc},
     thread,
@@ -163,7 +163,11 @@ impl World {
 
         return Some(block);
     }
-    pub fn get_blocks_nearby(&self, player: &Player) -> Option<Vec<Arc<RwLock<Block>>>> {
+    pub fn get_blocks_nearby(
+        &self,
+        player: Arc<RwLock<Player>>,
+    ) -> Option<Vec<Arc<RwLock<Block>>>> {
+        let player = player.read().unwrap();
         let mut positions = vec![];
         let mut nearby_blocks = vec![];
 
@@ -185,15 +189,18 @@ impl World {
     }
     pub fn update(
         &mut self,
-        player: &mut Player,
+        player: Arc<RwLock<Player>>,
         queue: Arc<wgpu::Queue>,
         device: Arc<wgpu::Device>,
     ) {
-        let current_chunk = player.calc_current_chunk();
-        if current_chunk != player.current_chunk {
+        let mut player_write = player.write().unwrap();
+        let current_chunk = player_write.calc_current_chunk();
+
+        // Update loaded chunks based on player position
+        if current_chunk != player_write.current_chunk {
             let delta = (
-                current_chunk.0 - player.current_chunk.0,
-                current_chunk.1 - player.current_chunk.1,
+                current_chunk.0 - player_write.current_chunk.0,
+                current_chunk.1 - player_write.current_chunk.1,
             );
 
             let o = if CHUNKS_PER_ROW % 2 == 0 { 1 } else { 0 };
@@ -212,8 +219,8 @@ impl World {
 
             let mut new_chunks_positions: Vec<(i32, i32)> = vec![];
 
-            let chunk_y_remove = player.current_chunk.1 + old_chunks_offset;
-            let chunk_x_remove = player.current_chunk.0 + old_chunks_offset;
+            let chunk_y_remove = player_write.current_chunk.1 + old_chunks_offset;
+            let chunk_x_remove = player_write.current_chunk.0 + old_chunks_offset;
             if delta.0 != 0 {
                 for i in LB + current_chunk.1..=UB + current_chunk.1 {
                     new_chunks_positions.push((current_chunk.0 + new_chunks_offset, i));
@@ -295,11 +302,30 @@ impl World {
             // Re-render only the last inserted chunks
         }
 
-        player.current_chunk = current_chunk;
+        player_write.current_chunk = current_chunk;
+        std::mem::drop(player_write);
+        // Update visible chunks based on player position and direction
+        {
+            let (sender, receiver) = mpsc::channel();
+            for chunk in self.chunks.iter() {
+                let chunk = Arc::clone(&chunk);
+                let sender = sender.clone();
+                let player = Arc::clone(&player);
+                self.thread_pool.as_ref().unwrap().execute(move || {
+                    let mut chunk = chunk.write().unwrap();
+                    chunk.visible = chunk.is_visible(player);
+                    sender.send(()).unwrap();
+                });
+            }
+            for _ in self.chunks.iter(){
+                receiver.recv().unwrap();
+            }
+        }
     }
     pub fn dispose(&mut self) {
         self.thread_pool = None;
     }
+
     pub fn save_state(&self) {
         for chunk in self.chunks.iter() {
             let chunkbrw = chunk.read().unwrap();

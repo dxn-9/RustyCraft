@@ -35,6 +35,7 @@ pub struct Chunk {
     pub chunk_index_buffer: Option<wgpu::Buffer>,
     pub chunk_vertex_buffer: Option<wgpu::Buffer>,
     pub outside_blocks: Vec<Arc<RwLock<Block>>>,
+    pub visible: bool,
 }
 
 impl Chunk {
@@ -322,7 +323,8 @@ impl Chunk {
     }
     // https://www.lighthouse3d.com/tutorials/view-frustum-culling/
     // Note: we don't compute the top and bottom planes, only far,near,right,left
-    pub fn is_visible(&self, player: &Player) -> bool {
+    pub fn is_visible(&self, player: Arc<RwLock<Player>>) -> bool {
+        let player = player.read().unwrap();
         let forward = player.camera.get_forward_dir();
         let right = player.camera.get_right_dir();
         let halfvside = player.camera.zfar / f32::tan(player.camera.fovy / 2.0);
@@ -423,6 +425,7 @@ impl Chunk {
             chunk_position_buffer,
             indices: 0,
             outside_blocks: vec![],
+            visible: true,
         };
 
         if !was_loaded {

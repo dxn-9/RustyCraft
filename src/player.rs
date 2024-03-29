@@ -49,11 +49,6 @@ impl Player {
     // Position relative to the chunk
     pub fn to_relative_position(&self) -> glam::Vec3 {
         todo!();
-        // glam::vec3(
-        //     f32::abs(self.camera.eye.x + (CHUNK_SIZE as f32 - 1.0) % CHUNK_SIZE as f32),
-        //     self.camera.eye.y,
-        //     f32::abs(self.camera.eye.z + (CHUNK_SIZE as f32 - 1.0) % CHUNK_SIZE as f32),
-        // )
     }
     pub fn get_collision(&self) -> crate::collision::CollisionBox {
         crate::collision::CollisionBox::new(
@@ -229,16 +224,16 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(surface_width: f32, surface_height: f32) -> Camera {
-        let eye = if let Ok(eye) = Camera::load(Box::new(())) {
-            eye
+        let (eye, yaw, pitch) = if let Ok((eye, yaw, pitch)) = Camera::load(Box::new(())) {
+            (eye, yaw, pitch)
         } else {
-            glam::vec3(-4.0, 50.0, 4.0)
+            (glam::vec3(-4.0, 50.0, 4.0), consts::FRAC_PI_2, 0.0)
         };
         Self {
             aspect_ratio: surface_width / surface_height,
             eye,
-            yaw: consts::FRAC_PI_2,
-            pitch: 0.0,
+            yaw,
+            pitch,
 
             fovy: consts::FRAC_PI_4,
             znear: 0.1,
@@ -280,7 +275,10 @@ impl Saveable<glam::Vec3> for Camera {
         if let Ok(_) = std::fs::create_dir("data") {
             println!("Created dir");
         }
-        let data = format!("{},{},{}", self.eye.x, self.eye.y, self.eye.z);
+        let data = format!(
+            "{},{},{},{},{}",
+            self.eye.x, self.eye.y, self.eye.z, self.yaw, self.pitch
+        );
 
         let player_file_name = "data/player";
         std::fs::write(player_file_name, data.as_bytes())?;
@@ -289,14 +287,16 @@ impl Saveable<glam::Vec3> for Camera {
     }
 }
 
-impl Loadable<glam::Vec3> for Camera {
-    fn load(_: Box<dyn Any>) -> Result<Vec3, Box<dyn Error>> {
+impl Loadable<(glam::Vec3, f32, f32)> for Camera {
+    fn load(_: Box<dyn Any>) -> Result<((Vec3, f32, f32)), Box<dyn Error>> {
         let data = String::from_utf8(std::fs::read("data/player")?)?;
         let mut data = data.split(",");
         let x = data.next().unwrap().parse::<f32>().unwrap();
         let y = data.next().unwrap().parse::<f32>().unwrap();
         let z = data.next().unwrap().parse::<f32>().unwrap();
+        let yaw = data.next().unwrap().parse::<f32>().unwrap();
+        let pitch = data.next().unwrap().parse::<f32>().unwrap();
 
-        return Ok(glam::vec3(x, y, z));
+        return Ok((glam::vec3(x, y, z), yaw, pitch));
     }
 }

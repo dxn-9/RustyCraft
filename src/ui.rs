@@ -4,7 +4,7 @@ use crate::pipeline::{PipelineTrait, PipelineType, Uniforms};
 use crate::player::Player;
 use crate::state::State;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, RwLock};
 use wgpu::util::DeviceExt;
 use wgpu::{BindGroup, Buffer, RenderPipeline};
 
@@ -41,7 +41,13 @@ impl UI {
             index_buffer,
         }
     }
-    pub fn update(&mut self, player: &Player, queue: Arc<wgpu::Queue>, device: Arc<wgpu::Device>) {
+    pub fn update(
+        &mut self,
+        player: Arc<RwLock<Player>>,
+        queue: Arc<wgpu::Queue>,
+        device: Arc<wgpu::Device>,
+    ) {
+        let player = player.read().unwrap();
         if let Some(block_ptr) = player.facing_block.as_ref() {
             let block = block_ptr.read().unwrap();
 
@@ -115,7 +121,7 @@ impl UIPipeline {
                 source: wgpu::ShaderSource::Wgsl(shader_source.into()),
             });
 
-        let uniforms = Uniforms::from(&state.player.camera);
+        let uniforms = Uniforms::from(&state.player.read().unwrap().camera);
 
         let projection_buffer =
             state

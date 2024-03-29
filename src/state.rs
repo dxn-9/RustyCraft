@@ -67,7 +67,7 @@ impl State {
         };
 
         let camera = Camera::new(surface_config.width as f32, surface_config.height as f32);
-        let player = Player {
+        let player = Arc::new(RwLock::new(Player {
             camera,
             current_chunk: (0, 0),
             is_jumping: false,
@@ -76,7 +76,7 @@ impl State {
             facing_face: None,
             jump_action_start: None,
             is_ghost: false,
-        };
+        }));
 
         surface.configure(&device, &surface_config);
         let config = Config {
@@ -113,6 +113,8 @@ impl State {
     }
     pub fn save_state(&mut self) {
         self.player
+            .read()
+            .unwrap()
             .camera
             .save()
             .expect("Failed to save camera state");
@@ -120,9 +122,12 @@ impl State {
     }
     pub fn dispose(&mut self) {
         self.world.dispose();
+        self.device.destroy();
+        std::mem::drop(self.queue.to_owned());
     }
     pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
         let is_pressed: f32 = if event.state.is_pressed() { 1. } else { 0. };
+        let mut player = self.player.write().unwrap();
 
         match event {
             KeyEvent {
@@ -163,9 +168,9 @@ impl State {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => {
-                if self.player.on_ground {
-                    self.player.is_jumping = true;
-                    self.player.jump_action_start = Some(std::time::Instant::now());
+                if player.on_ground {
+                    player.is_jumping = true;
+                    player.jump_action_start = Some(std::time::Instant::now());
                 }
             }
             KeyEvent {
@@ -173,7 +178,7 @@ impl State {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => {
-                self.player.is_ghost = !self.player.is_ghost;
+                player.is_ghost = !player.is_ghost;
             }
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyF),
@@ -190,9 +195,9 @@ impl State {
         }
     }
     pub fn on_click(&mut self, button: MouseButton) {
-        if let Some(facing_block) = self.player.facing_block.as_ref() {
-            let facing_face = self
-                .player
+        let player = self.player.read().unwrap();
+        if let Some(facing_block) = player.facing_block.as_ref() {
+            let facing_face = player
                 .facing_face
                 .expect("Cannot be not facing a face if it's facing a block");
             match button {
@@ -217,7 +222,7 @@ impl State {
         }
     }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
-        self.player.camera.move_target(delta)
+        self.player.write().unwrap().camera.move_target(delta)
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -231,7 +236,8 @@ impl State {
     }
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
         let mut collisions = vec![];
-        if let Some(nearby_blocks) = self.world.get_blocks_nearby(&self.player) {
+
+        if let Some(nearby_blocks) = self.world.get_blocks_nearby(Arc::clone(&self.player)) {
             for block in nearby_blocks.iter() {
                 let block = block.read().unwrap();
                 let collision = CollisionBox::from_block_position(
@@ -242,22 +248,23 @@ impl State {
                 collisions.push(collision);
             }
         };
-        self.player.move_camera(
+        let mut player = self.player.write().unwrap();
+        player.move_camera(
             &self.camera_controller.movement_vector,
             delta_time,
             &collisions,
         );
-        if let Some((block, face_dir)) = self.player.get_facing_block(&collisions) {
+        if let Some((block, face_dir)) = player.get_facing_block(&collisions) {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
 
-            self.player.facing_block = block;
-            self.player.facing_face = Some(face_dir);
+            player.facing_block = block;
+            player.facing_face = Some(face_dir);
         } else {
-            self.player.facing_block = None;
-            self.player.facing_face = None;
+            player.facing_block = None;
+            player.facing_face = None;
         }
 
-        let uniforms = Uniforms::from(&self.player.camera);
+        let uniforms = Uniforms::from(&player.camera);
 
         for pipeline in self.pipelines.iter() {
             self.queue.write_buffer(
@@ -266,14 +273,16 @@ impl State {
                 bytemuck::cast_slice(&[uniforms.view]),
             )
         }
+        // Drop write lock
+        std::mem::drop(player);
 
         self.world.update(
-            &mut self.player,
+            Arc::clone(&self.player),
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
         self.ui.update(
-            &mut self.player,
+            Arc::clone(&self.player),
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
@@ -335,7 +344,7 @@ impl State {
             rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
             for chunk in chunks.iter() {
-                if chunk.is_visible(&self.player) {
+                if chunk.visible {
                     rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
                     rpass.set_vertex_buffer(
                         0,
@@ -410,10 +419,9 @@ pub struct State {
     pub window: Arc<Mutex<Window>>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub pipelines: Vec<Box<dyn PipelineTrait>>,
-    pub player: Player,
+    pub player: Arc<RwLock<Player>>,
     pub world: World,
     pub ui: UI,
     pub config: Config,
     pub camera_controller: CameraController,
-    // pub model: Rc<RefCell<Model>>,
 }
