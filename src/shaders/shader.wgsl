@@ -36,6 +36,7 @@ var <uniform> current_chunk: vec2<i32>;
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
+
     let chunk_offset = vec4<f32>(f32(current_chunk.x) * 16.0, 0.0, f32(current_chunk.y) * 16.0, 0.0);
 
     out.clip_position = projection * view * (vec4<f32>(in.position.xyz, 1.0) + chunk_offset);
@@ -70,7 +71,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     color = textureSample(diffuse, t_sampler, in.tex_coords);
     color *= max(dot(in.normals, normalize(light_direction)), 0.2);
     color += vec4<f32>(vec3<f32>(ambient_light), 0.0);
-    color *= 1.0 - in.ao;
+    color *= 1.0 - (in.ao * 0.9);
 
     return color;
 }

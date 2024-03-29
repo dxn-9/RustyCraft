@@ -70,7 +70,7 @@ impl Player {
         &mut self,
         collisions: &'a Vec<CollisionBox>,
     ) -> Option<(&'a CollisionBox, FaceDirections)> {
-        let forward = self.camera.calc_target();
+        let forward = self.camera.get_forward_dir();
         let mut ray_results: Vec<RayResult> = vec![];
 
         let ray = crate::collision::Ray {
@@ -142,7 +142,7 @@ impl Player {
         let input_direction = direction;
         let player_collision = self.get_collision();
 
-        let forward = self.camera.calc_target();
+        let forward = self.camera.get_forward_dir();
 
         let mut velocity = vec3(0.0, 0.0, 0.0);
 
@@ -247,13 +247,16 @@ impl Camera {
         }
     }
     pub fn build_view_matrix(&self) -> glam::Mat4 {
-        glam::Mat4::look_at_lh(self.eye, self.eye + self.calc_target(), glam::Vec3::Y)
+        glam::Mat4::look_at_lh(self.eye, self.eye + self.get_forward_dir(), glam::Vec3::Y)
     }
     pub fn build_projection_matrix(&self) -> glam::Mat4 {
         glam::Mat4::perspective_lh(self.fovy, self.aspect_ratio, self.znear, self.zfar)
     }
+    pub fn get_right_dir(&self) -> glam::Vec3 {
+        glam::vec3(0.0, 1.0, 0.0).cross(self.get_forward_dir())
+    }
 
-    pub fn calc_target(&self) -> glam::Vec3 {
+    pub fn get_forward_dir(&self) -> glam::Vec3 {
         let mut direction = glam::Vec3::ZERO;
 
         direction.x = f32::cos(self.yaw) * f32::cos(self.pitch);

@@ -66,17 +66,7 @@ impl State {
             view_formats: vec![],
         };
 
-        let camera = Camera {
-            aspect_ratio: surface_config.width as f32 / surface_config.height as f32,
-            eye: glam::vec3(-4.0, 50.0, 4.0),
-            yaw: consts::FRAC_PI_2,
-            pitch: 0.0,
-
-            fovy: consts::FRAC_PI_4,
-            znear: 0.1,
-            zfar: 1000.,
-            needs_update: false,
-        };
+        let camera = Camera::new(surface_config.width as f32, surface_config.height as f32);
         let player = Player {
             camera,
             current_chunk: (0, 0),
@@ -345,24 +335,26 @@ impl State {
             rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
             for chunk in chunks.iter() {
-                rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                rpass.set_vertex_buffer(
-                    0,
-                    chunk
-                        .chunk_vertex_buffer
-                        .as_ref()
-                        .expect("Vertex buffer not initiated")
-                        .slice(..),
-                );
-                rpass.set_index_buffer(
-                    chunk
-                        .chunk_index_buffer
-                        .as_ref()
-                        .expect("Index buffer not initiated")
-                        .slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
-                rpass.draw_indexed(0..chunk.indices, 0, 0..1);
+                if chunk.is_visible(&self.player) {
+                    rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
+                    rpass.set_vertex_buffer(
+                        0,
+                        chunk
+                            .chunk_vertex_buffer
+                            .as_ref()
+                            .expect("Vertex buffer not initiated")
+                            .slice(..),
+                    );
+                    rpass.set_index_buffer(
+                        chunk
+                            .chunk_index_buffer
+                            .as_ref()
+                            .expect("Index buffer not initiated")
+                            .slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    rpass.draw_indexed(0..chunk.indices, 0, 0..1);
+                };
             }
         }
         {

@@ -8,6 +8,18 @@ fn fade(t: f32) -> f32 {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + ((b - a) * t)
 }
+pub(crate) mod math_utils {
+    #[derive(Debug)]
+    pub struct Plane {
+        pub point: glam::Vec3,
+        pub normal: glam::Vec3,
+    }
+    impl Plane {
+        pub fn signed_plane_dist(&self, point: glam::Vec3) -> f32 {
+            (point - self.point).dot(self.normal)
+        }
+    }
+}
 pub(crate) mod noise {
     use std::fmt::Debug;
 
@@ -130,8 +142,10 @@ pub(crate) mod threadpool {
     impl Worker {
         pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
             let thread = thread::spawn(move || loop {
-                let job = receiver.lock().unwrap().recv().unwrap();
-                job();
+                let receiver = receiver.lock().unwrap();
+                if let Ok(job) = receiver.recv() {
+                    job();
+                }
             });
             Worker { id, thread }
         }

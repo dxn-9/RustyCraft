@@ -26,7 +26,6 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     return out;
 }
 
-
 @group(1) @binding(0)
 var diffuse: texture_2d<f32>;
 @group(1) @binding(1)

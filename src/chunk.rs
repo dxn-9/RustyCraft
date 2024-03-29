@@ -1,4 +1,6 @@
 use crate::persistence::{Loadable, Saveable};
+use crate::player::Player;
+use crate::utils::math_utils::Plane;
 use crate::world::WorldChunk;
 use crate::{
     blocks::{
@@ -58,6 +60,7 @@ impl Chunk {
         y_blocks[block_position.y as usize] = Some(block);
     }
     pub fn remove_block(&mut self, block_r_position: &Vec3) {
+        let mut a = 0;
         let mut blocks_borrow = self.blocks.write().unwrap();
         let y_blocks = blocks_borrow
             .get_mut(((block_r_position.x * CHUNK_SIZE as f32) + block_r_position.z) as usize)
@@ -113,7 +116,8 @@ impl Chunk {
     pub fn build_mesh(&self, other_chunks: Vec<WorldChunk>) -> (u32, wgpu::Buffer, wgpu::Buffer) {
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
-        let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> = vec![((self.x, self.y), self.blocks.clone())];
+        let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> =
+            vec![((self.x, self.y), self.blocks.clone())];
 
         for chunk in &other_chunks {
             let chunk_read = chunk.read().unwrap();
@@ -315,6 +319,64 @@ impl Chunk {
                 }
             }
         }
+    }
+    // https://www.lighthouse3d.com/tutorials/view-frustum-culling/
+    // Note: we don't compute the top and bottom planes, only far,near,right,left
+    pub fn is_visible(&self, player: &Player) -> bool {
+        let forward = player.camera.get_forward_dir();
+        let right = player.camera.get_right_dir();
+        let halfvside = player.camera.zfar / f32::tan(player.camera.fovy / 2.0);
+        let halfhside = halfvside * player.camera.aspect_ratio;
+        let front_mult_far = player.camera.zfar * forward;
+
+        let chunk_points = [
+            (
+                (self.x as f32) * CHUNK_SIZE as f32,
+                (self.y as f32) * CHUNK_SIZE as f32,
+            ),
+            (
+                (self.x as f32 + 1.0) * CHUNK_SIZE as f32,
+                (self.y as f32) * CHUNK_SIZE as f32,
+            ),
+            (
+                (self.x as f32) * CHUNK_SIZE as f32,
+                (self.y as f32 + 1.0) * CHUNK_SIZE as f32,
+            ),
+            (
+                (self.x as f32 + 1.0) * CHUNK_SIZE as f32,
+                (self.y as f32 + 1.0) * CHUNK_SIZE as f32,
+            ),
+        ];
+
+        let near_plane = Plane {
+            point: player.camera.eye + player.camera.znear * forward,
+            normal: forward,
+        };
+        let far_plane = Plane {
+            point: player.camera.eye + front_mult_far,
+            normal: -forward,
+        };
+        let right_plane = Plane {
+            point: player.camera.eye,
+            normal: glam::vec3(0.0, 1.0, 0.0)
+                .cross(player.camera.eye - (front_mult_far + right * halfhside))
+                .normalize(),
+        };
+        let left_plane = Plane {
+            point: player.camera.eye,
+            normal: (player.camera.eye - (front_mult_far - right * halfhside))
+                .cross(glam::vec3(0.0, 1.0, 0.0))
+                .normalize(),
+        };
+
+        // returns true if at least one border of a chunk is visible is inside the frustum
+        [far_plane, near_plane, left_plane, right_plane]
+            .iter()
+            .all(|p| {
+                chunk_points.iter().any(|chunk_point| {
+                    p.signed_plane_dist(glam::vec3(chunk_point.0, 0.0, chunk_point.1)) >= 0.0
+                })
+            })
     }
 
     pub fn new(

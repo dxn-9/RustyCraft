@@ -46,8 +46,6 @@ pub mod utils;
 pub mod world;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-    // let model: Obj = load_obj(input).unwrap();
-
     let start = Instant::now();
     let mut total_time = start.elapsed();
     let mut delta_time = start.elapsed();
