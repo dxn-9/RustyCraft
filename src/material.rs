@@ -124,7 +124,6 @@ impl Texture {
         let f = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(f);
         let image = image::load(reader, image::ImageFormat::Png)?;
-        let image = image.flipv();
         let dimensions = image.dimensions();
         let rgba = image.as_rgba8().unwrap();
 

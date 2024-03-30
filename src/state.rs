@@ -219,7 +219,7 @@ impl State {
                     let position = new_block_abs_position.relative_from_absolute();
 
                     let new_block =
-                        Arc::new(RwLock::new(Block::new(position, chunk, BlockType::dirt())));
+                        Arc::new(RwLock::new(Block::new(position, chunk, BlockType::Dirt)));
 
                     self.world.place_block(new_block);
                 }

@@ -9,103 +9,77 @@ pub struct FaceTexture(u32);
 #[derive(Clone, Copy, Debug)]
 pub struct BlockTypeConfigs {
     pub id: u32,
-    // The amount to add to the block id (because some blocks have more than 1 texture)
-    pub step: u32,
-    // Different texture for top face
-    pub top_texture: Option<FaceTexture>,
-    // Different texture for bottom face
-    pub bottom_texture: Option<FaceTexture>,
+    // Integers representing the nth texture to use.
+    pub textures: [FaceTexture; 3], // 1: Lateral texture, 2: Top texture, 3: Bottom texture
     pub is_translucent: bool,
 }
 
+impl BlockTypeConfigs {
+    pub fn get(block_type: BlockType) -> BlockTypeConfigs {
+        match block_type {
+            BlockType::Grass => BlockTypeConfigs {
+                id: 0,
+                textures: [FaceTexture(6), FaceTexture(7), FaceTexture(8)],
+                is_translucent: false,
+            },
+            BlockType::Dirt => BlockTypeConfigs {
+                id: 1,
+                textures: [FaceTexture(0), FaceTexture(0), FaceTexture(0)],
+                is_translucent: false,
+            },
+
+            BlockType::Water => BlockTypeConfigs {
+                id: 2,
+                textures: [FaceTexture(1), FaceTexture(1), FaceTexture(1)],
+                is_translucent: true,
+            },
+
+            BlockType::Wood => BlockTypeConfigs {
+                id: 3,
+                textures: [FaceTexture(4), FaceTexture(5), FaceTexture(5)],
+                is_translucent: false,
+            },
+            BlockType::Leaf => BlockTypeConfigs {
+                id: 4,
+                textures: [FaceTexture(2), FaceTexture(2), FaceTexture(2)],
+                is_translucent: false,
+            },
+            BlockType::Stone => BlockTypeConfigs {
+                id: 5,
+                textures: [FaceTexture(3), FaceTexture(3), FaceTexture(3)],
+                is_translucent: false,
+            },
+        }
+    }
+}
+
 #[repr(u32)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BlockType {
-    Grass(BlockTypeConfigs),
-    Dirt(BlockTypeConfigs),
-    Water(BlockTypeConfigs),
-    Wood(BlockTypeConfigs),
-    Leaf(BlockTypeConfigs),
-    Stone(BlockTypeConfigs),
+    Grass,
+    Dirt,
+    Water,
+    Wood,
+    Leaf,
+    Stone,
 }
 impl BlockType {
-    pub fn from_id(id: u32) -> BlockType {
-        match id {
-            0 => Self::dirt(),
-            1 => Self::water(),
-            2 => Self::leaf(),
-            3 => Self::stone(),
-            4 => Self::wood(),
-            5 => Self::grass(),
-            _ => panic!("Invalid id"),
-        }
+    pub fn get_config(&self) -> BlockTypeConfigs {
+        BlockTypeConfigs::get(*self)
     }
     pub fn to_id(&self) -> u32 {
-        // meh
-        match self {
-            Self::Grass(f) => f.id,
-            Self::Dirt(f) => f.id,
-            Self::Water(f) => f.id,
-            Self::Wood(f) => f.id,
-            Self::Leaf(f) => f.id,
-            Self::Stone(f) => f.id,
+        self.get_config().id
+    }
+    pub fn from_id(id: u32) -> BlockType {
+        match id {
+            0 => Self::Grass,
+            1 => Self::Dirt,
+            2 => Self::Water,
+            3 => Self::Wood,
+            4 => Self::Leaf,
+            5 => Self::Stone,
+            _ => panic!("Invalid id"),
         }
-    }
-
-    pub fn dirt() -> Self {
-        Self::Dirt(BlockTypeConfigs {
-            id: 0,
-            step: 0,
-            bottom_texture: None,
-            top_texture: None,
-            is_translucent: false,
-        })
-    }
-    pub fn water() -> Self {
-        Self::Water(BlockTypeConfigs {
-            id: 1,
-            step: 0,
-            bottom_texture: None,
-            top_texture: None,
-            is_translucent: true,
-        })
-    }
-    pub fn leaf() -> Self {
-        Self::Leaf(BlockTypeConfigs {
-            id: 2,
-            step: 0,
-            bottom_texture: None,
-            top_texture: None,
-            is_translucent: false,
-        })
-    }
-    pub fn stone() -> Self {
-        Self::Stone(BlockTypeConfigs {
-            id: 3,
-            step: 0,
-            bottom_texture: None,
-            top_texture: None,
-            is_translucent: false,
-        })
-    }
-    pub fn wood() -> Self {
-        Self::Wood(BlockTypeConfigs {
-            id: 4,
-            step: 0,
-            bottom_texture: Some(FaceTexture(1)),
-            top_texture: Some(FaceTexture(1)),
-            is_translucent: false,
-        })
-    }
-
-    pub fn grass() -> Self {
-        Self::Grass(BlockTypeConfigs {
-            id: 5,
-            step: 1,
-            bottom_texture: Some(FaceTexture(2)),
-            top_texture: Some(FaceTexture(1)),
-            is_translucent: false,
-        })
     }
 }
 impl BlockType {
@@ -118,45 +92,45 @@ impl BlockType {
             let scaler = (y as f32 - Self::U_STONE_THRESHOLD as f32) / 10.0;
             let res = t + scaler;
             if res > 1.0 {
-                BlockType::stone()
+                BlockType::Stone
             } else {
-                BlockType::dirt()
+                BlockType::Dirt
             }
         } else if y < Self::L_STONE_THRESHOLD {
-            BlockType::stone()
+            BlockType::Stone
         } else {
-            BlockType::dirt()
+            BlockType::Dirt
         }
     }
 }
 
 const TEXTURE_SIZE: u32 = 256;
 const BLOCK_PER_ROW: u32 = 8;
+// 32px per block
 const BLOCK_OFFSET: u32 = TEXTURE_SIZE / BLOCK_PER_ROW;
 const BLOCK_OFFSET_NORMALIZED: f32 = BLOCK_OFFSET as f32 / TEXTURE_SIZE as f32;
 
 fn get_base_coords(config: &BlockTypeConfigs, face_dir: FaceDirections) -> glam::Vec2 {
     let face_offset = match face_dir {
-        FaceDirections::Top => config.top_texture.unwrap_or(FaceTexture(0)),
-        FaceDirections::Bottom => config.bottom_texture.unwrap_or(FaceTexture(0)),
-        _ => FaceTexture(0),
+        FaceDirections::Top => config.textures[1],
+        FaceDirections::Bottom => config.textures[2],
+        _ => config.textures[0],
     };
+    let y_offset = (face_offset.0 / BLOCK_PER_ROW) as f32;
+    let x_offset = (face_offset.0 % BLOCK_PER_ROW) as f32;
 
-    let position = config.id + config.step + face_offset.0;
-    let wrap = position / BLOCK_PER_ROW;
-
-    let low_bound = 1.0 - (BLOCK_OFFSET_NORMALIZED + (BLOCK_OFFSET_NORMALIZED * wrap as f32));
-    let left_bound = (position as f32 % BLOCK_PER_ROW as f32) / BLOCK_PER_ROW as f32;
-    glam::vec2(left_bound, low_bound)
+    let low_bound = y_offset * BLOCK_OFFSET_NORMALIZED + BLOCK_OFFSET_NORMALIZED;
+    let left_bound = x_offset * BLOCK_OFFSET_NORMALIZED;
+    return glam::vec2(left_bound, low_bound);
 }
 fn get_tex_coords(config: &BlockTypeConfigs, face_dir: FaceDirections) -> [[f32; 2]; 4] {
     let bc = get_base_coords(config, face_dir);
     [
         [bc.x, bc.y],
-        [bc.x, bc.y + BLOCK_OFFSET_NORMALIZED],
+        [bc.x, bc.y - BLOCK_OFFSET_NORMALIZED],
         [
             bc.x + BLOCK_OFFSET_NORMALIZED,
-            bc.y + BLOCK_OFFSET_NORMALIZED,
+            bc.y - BLOCK_OFFSET_NORMALIZED,
         ],
         [bc.x + BLOCK_OFFSET_NORMALIZED, bc.y],
     ]
@@ -164,13 +138,6 @@ fn get_tex_coords(config: &BlockTypeConfigs, face_dir: FaceDirections) -> [[f32;
 
 impl TexturedBlock for BlockType {
     fn get_texcoords(&self, face_dir: FaceDirections) -> [[f32; 2]; 4] {
-        match self {
-            BlockType::Grass(config) => get_tex_coords(config, face_dir),
-            BlockType::Dirt(config) => get_tex_coords(config, face_dir),
-            BlockType::Water(config) => get_tex_coords(config, face_dir),
-            BlockType::Stone(config) => get_tex_coords(config, face_dir),
-            BlockType::Wood(config) => get_tex_coords(config, face_dir),
-            BlockType::Leaf(config) => get_tex_coords(config, face_dir),
-        }
+        get_tex_coords(&self.get_config(), face_dir)
     }
 }

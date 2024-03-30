@@ -45,14 +45,14 @@ impl Structure for Tree {
             Arc::new(RwLock::new(Block::new(
                 p.relative_from_absolute(),
                 p.get_chunk_from_position_absolute(),
-                BlockType::wood(),
+                BlockType::Wood,
             )))
         });
         let leafs_iter = leafs_pos.iter().map(|p| {
             Arc::new(RwLock::new(Block::new(
                 p.relative_from_absolute(),
                 p.get_chunk_from_position_absolute(),
-                BlockType::leaf(),
+                BlockType::Leaf,
             )))
         });
         let blocks = blocks.chain(leafs_iter).collect::<Vec<_>>();

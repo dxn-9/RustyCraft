@@ -1,7 +1,8 @@
+use crate::blocks::block_type::BlockType::Water;
 use crate::persistence::{Loadable, Saveable};
 use crate::player::Player;
 use crate::utils::math_utils::Plane;
-use crate::world::WorldChunk;
+use crate::world::{WorldChunk, WATER_HEIGHT_LEVEL};
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
@@ -34,6 +35,8 @@ pub struct Chunk {
     pub chunk_position_buffer: wgpu::Buffer,
     pub chunk_index_buffer: Option<wgpu::Buffer>,
     pub chunk_vertex_buffer: Option<wgpu::Buffer>,
+    pub chunk_water_vertex_buffer: Option<wgpu::Buffer>,
+    pub chunk_water_index_buffer: Option<wgpu::Buffer>,
     pub outside_blocks: Vec<Arc<RwLock<Block>>>,
     pub visible: bool,
 }
@@ -67,6 +70,11 @@ impl Chunk {
             .get_mut(((block_r_position.x * CHUNK_SIZE as f32) + block_r_position.z) as usize)
             .expect("Cannot delete oob block");
         y_blocks[block_r_position.y as usize] = None;
+    }
+    pub fn block_type_at(&self, position: &glam::Vec3) -> Option<BlockType> {
+        let block = self.get_block_at_relative(position)?;
+        let block_type = block.read().unwrap().block_type;
+        Some(block_type.clone())
     }
     pub fn exists_block_at(&self, position: &glam::Vec3) -> bool {
         if let Some(y_blocks) = self
@@ -115,6 +123,8 @@ impl Chunk {
         }
     }
     pub fn build_mesh(&self, other_chunks: Vec<WorldChunk>) -> (u32, wgpu::Buffer, wgpu::Buffer) {
+        let mut water_vertex: Vec<BlockVertexData> = vec![];
+        let mut water_indices: Vec<u32> = vec![];
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
         let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> =
@@ -182,18 +192,37 @@ impl Chunk {
                                     };
                                 }
                             }
-                        } else if self.exists_block_at(&face_position) {
+                        } else if self.exists_block_at(&face_position)
+                            && self.block_type_at(&face_position) != Some(BlockType::Water)
+                        {
                             is_visible = false;
                         }
 
                         if is_visible {
                             let (mut vertex_data, index_data) =
                                 face.create_face_data(block_ptr.clone(), &adjacent_chunks);
-                            vertex.append(&mut vertex_data);
-                            let indices_offset = vertex.len() as u32 - 4;
-                            indices.append(
-                                &mut index_data.iter().map(|i| i + indices_offset).collect(),
-                            )
+                            match block.block_type {
+                                BlockType::Water => {
+                                    water_vertex.append(&mut vertex_data);
+                                    let indices_offset = water_vertex.len() as u32 - 4;
+                                    water_indices.append(
+                                        &mut index_data
+                                            .iter()
+                                            .map(|i| i + indices_offset)
+                                            .collect(),
+                                    )
+                                }
+                                _ => {
+                                    vertex.append(&mut vertex_data);
+                                    let indices_offset = vertex.len() as u32 - 4;
+                                    indices.append(
+                                        &mut index_data
+                                            .iter()
+                                            .map(|i| i + indices_offset)
+                                            .collect(),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -266,9 +295,11 @@ impl Chunk {
             for z in 0..CHUNK_SIZE {
                 let y_top = Chunk::get_height_value(chunk_x, chunk_y, x, z, noise_data.clone());
 
+                let curr = &mut blocks.write().unwrap()[((x * CHUNK_SIZE) + z) as usize];
+
                 for y in 0..=y_top {
                     let block_type = match BlockType::from_y_position(y) {
-                        BlockType::Dirt(..) if y == y_top => BlockType::grass(),
+                        BlockType::Dirt if y == y_top => BlockType::Grass,
                         b => b,
                     };
 
@@ -278,14 +309,34 @@ impl Chunk {
                         block_type,
                     )));
 
-                    let curr = &mut blocks.write().unwrap()[((x * CHUNK_SIZE) + z) as usize];
                     curr.push(Some(block.clone()));
+                }
+                // Make sure the length is at least water level
+                for y in curr.len()..=(WATER_HEIGHT_LEVEL as usize) {
+                    if let None = curr.get(y) {
+                        curr.push(None);
+                    }
+                }
+
+                for y in 0..=WATER_HEIGHT_LEVEL as usize {
+                    if let Some(entry) = curr.get(y) {
+                        // If there's not a block on this level, place water
+                        if let None = entry {
+                            let block = Arc::new(RwLock::new(Block::new(
+                                glam::vec3(x as f32, y as f32, z as f32),
+                                (chunk_x, chunk_y),
+                                BlockType::Water,
+                            )));
+                            curr[y as usize] = Some(block);
+                        }
+                    }
                 }
             }
         }
 
         blocks
     }
+    // TODO: Use white noise + check that the tree is not being placed on water.
     pub fn place_trees(&mut self) {
         let number_of_trees = rand::random::<f32>();
         let number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
@@ -413,6 +464,8 @@ impl Chunk {
         });
 
         let mut chunk = Chunk {
+            chunk_water_index_buffer: None,
+            chunk_water_vertex_buffer: None,
             blocks,
             x,
             y,

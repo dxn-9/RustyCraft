@@ -18,13 +18,13 @@ pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
 pub const CHUNKS_PER_ROW: u32 = 9;
-
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
+pub const WATER_HEIGHT_LEVEL: u8 = 5;
 
 // Lower bound of chunk
 pub const LB: i32 = -((CHUNKS_PER_ROW / 2) as i32);
 
-// Upper boound of chunk
+// Upper bound of chunk
 pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
     (CHUNKS_PER_ROW / 2 - 1) as i32
 } else {

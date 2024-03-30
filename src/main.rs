@@ -142,7 +142,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                             state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
                         }
                         state.draw();
-
                         window.lock().unwrap().request_redraw();
                     }
 
