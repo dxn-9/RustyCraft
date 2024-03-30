@@ -64,6 +64,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let mut prev_mouse_pos = glam::vec2(0.0, 0.0);
     let mut cursor_in = false;
+    let mut first_render = true;
 
     event_loop
         .run(move |event, target| {
@@ -133,7 +134,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         delta_time = start.elapsed() - total_time;
                         total_time = start.elapsed();
 
-                        state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
+                        if first_render {
+                            // Don't do calcs based on delta time on first render
+                            state.update(0.0, 0.0);
+                            first_render = false;
+                        } else {
+                            state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
+                        }
                         state.draw();
 
                         window.lock().unwrap().request_redraw();
