@@ -7,6 +7,7 @@ use crate::collision::CollisionBox;
 use crate::persistence::Saveable;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
+use crate::water::WaterPipeline;
 use crate::{
     material::Texture,
     pipeline::{self, Uniforms},
@@ -110,9 +111,11 @@ impl State {
         };
 
         let world_pipeline = Box::new(Pipeline::new(&state));
+        let water_pipeline = Box::new(WaterPipeline::new(&state));
         let ui_pipeline = Box::new(UIPipeline::new(&state));
 
         state.pipelines.push(world_pipeline);
+        state.pipelines.push(water_pipeline);
         state.pipelines.push(ui_pipeline);
 
         state
@@ -326,9 +329,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.03,
+                            g: 0.64,
+                            b: 0.97,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -378,6 +381,59 @@ impl State {
             }
         }
         {
+            let mut water_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.pipelines[0].depth_texture().view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            let pipeline = &self.pipelines[1];
+
+            water_rpass.set_pipeline(pipeline.pipeline());
+
+            water_rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
+            water_rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+            water_rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
+
+            for chunk in chunks.iter() {
+                if chunk.visible {
+                    water_rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
+                    water_rpass.set_vertex_buffer(
+                        0,
+                        chunk
+                            .chunk_water_vertex_buffer
+                            .as_ref()
+                            .expect("Vertex buffer not initiated")
+                            .slice(..),
+                    );
+                    water_rpass.set_index_buffer(
+                        chunk
+                            .chunk_water_index_buffer
+                            .as_ref()
+                            .expect("Index buffer not initiated")
+                            .slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    water_rpass.draw_indexed(0..chunk.water_indices, 0, 0..1);
+                };
+            }
+        }
+        {
             let mut ui_renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -400,7 +456,7 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            let pipeline = &self.pipelines[1];
+            let pipeline = &self.pipelines[2];
             ui_renderpass.set_pipeline(pipeline.pipeline());
 
             ui_renderpass.set_bind_group(0, pipeline.bind_group_0(), &[]);

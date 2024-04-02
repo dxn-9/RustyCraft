@@ -12,7 +12,7 @@ struct InstanceInput {
     // @location(2) instance_transform: vec3<f32>,
     @builtin(instance_index) instance_index: u32,
 };
- 
+
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -27,7 +27,7 @@ struct VertexOutput {
 
 @group(0) @binding(0)
 var<uniform> projection: mat4x4<f32>;
-@group(0) @binding(1) 
+@group(0) @binding(1)
 var<uniform> view: mat4x4<f32>;
 @group(2) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
@@ -69,18 +69,12 @@ struct FragmentInput {
         @location(5) fog: f32
 }
 
-const light_direction = vec3<f32>(0.25, 1.0, -0.5);
-const ambient_light = 0.005;
 
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
-
     color = textureSample(diffuse, t_sampler, in.tex_coords);
-    color *= max(dot(in.normals, normalize(light_direction)), 0.2);
-    color += vec4<f32>(vec3<f32>(ambient_light), 0.0);
-    color *= 1.0 - (in.ao * 0.9);
-    color = mix(color, vec4<f32>(0.03, 0.64, 0.97, 1.0), in.fog);
+    color.a = 0.1;
 
     return color;
 }

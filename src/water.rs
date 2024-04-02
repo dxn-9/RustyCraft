@@ -1,45 +1,34 @@
-use std::fs::File;
-use std::io::Read;
-use std::{cell::RefCell, rc::Rc};
+use crate::blocks::block::Block;
+use crate::material::Texture;
+use crate::pipeline::{PipelineTrait, PipelineType, Uniforms};
+use crate::state::State;
+use crate::ui::UIPipeline;
+use wgpu::util::DeviceExt;
+use wgpu::{BindGroup, Buffer, RenderPipeline};
 
-use bytemuck::{Pod, Zeroable};
-use obj::Vertex;
-use wgpu::{include_wgsl, util::DeviceExt, BindGroup, Buffer, Face, RenderPipeline};
-
-use crate::{
-    blocks::block::Block,
-    material::{Material, Texture},
-    player::Camera,
-    state::State,
-};
-
-struct Matrices {
-    view: glam::Mat4,
-    projection: glam::Mat4,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Pod, Zeroable)]
-pub struct Uniforms {
-    pub view: [f32; 16],
-    pub projection: [f32; 16],
-}
-
-impl From<&Camera> for Uniforms {
-    fn from(camera: &Camera) -> Self {
-        Self {
-            view: *camera.build_view_matrix().as_ref(),
-            projection: *camera.build_projection_matrix().as_ref(),
-        }
+pub struct Water;
+impl Water {
+    pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
+        Block::get_vertex_data_layout()
     }
 }
-
-impl Pipeline {
+// TODO: This is kind of a bad abstraction and pipeline creation should definitely be easier to abstract, instead of creating same objects with same trait.
+pub struct WaterPipeline {
+    pub projection_buffer: wgpu::Buffer,
+    pub view_buffer: wgpu::Buffer,
+    pub pipeline: wgpu::RenderPipeline,
+    pub depth_texture: crate::Texture,
+    pub bind_group_0: wgpu::BindGroup,
+    pub bind_group_1: wgpu::BindGroup,
+    pub pipeline_type: crate::pipeline::PipelineType,
+}
+impl WaterPipeline {
+    // TODO: This is very ugly and should be abstracted for all pipelines
     pub fn new(state: &State) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let shader_source = std::fs::read_to_string("src/shaders/shader.wgsl").unwrap();
+        let shader_source = std::fs::read_to_string("src/shaders/water_shader.wgsl").unwrap();
 
         let shader = state
             .device
@@ -192,17 +181,20 @@ impl Pipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[Block::get_vertex_data_layout()],
+                        buffers: &[Water::get_vertex_data_layout()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fs_main",
-                        targets: &[Some(swapchain_format.into())],
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: swapchain_format,
+                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
                     }),
-
                     primitive: wgpu::PrimitiveState {
                         polygon_mode: state.config.polygon_mode,
-                        cull_mode: Some(Face::Front),
+                        cull_mode: Some(wgpu::Face::Front),
                         ..Default::default()
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
@@ -219,7 +211,7 @@ impl Pipeline {
         Self {
             view_buffer,
             projection_buffer,
-            pipeline_type: PipelineType::WORLD,
+            pipeline_type: PipelineType::WATER,
             depth_texture,
             bind_group_0,
             bind_group_1,
@@ -228,7 +220,7 @@ impl Pipeline {
     }
 }
 
-impl PipelineTrait for Pipeline {
+impl PipelineTrait for WaterPipeline {
     fn projection_buffer(&self) -> &Buffer {
         &self.projection_buffer
     }
@@ -241,48 +233,23 @@ impl PipelineTrait for Pipeline {
         &self.view_buffer
     }
 
-    fn depth_texture(&self) -> &Texture {
-        &self.depth_texture
-    }
-    fn set_depth_texture(&mut self, texture: Texture) {
-        self.depth_texture = texture;
-    }
     fn bind_group_0(&self) -> &BindGroup {
         &self.bind_group_0
     }
+
     fn bind_group_1(&self) -> &BindGroup {
         &self.bind_group_1
     }
+
+    fn depth_texture(&self) -> &Texture {
+        todo!()
+    }
+
+    fn set_depth_texture(&mut self, texture: Texture) {
+        todo!()
+    }
+
     fn get_type(&self) -> PipelineType {
         self.pipeline_type
     }
-}
-
-pub trait PipelineTrait {
-    fn projection_buffer(&self) -> &wgpu::Buffer;
-    fn pipeline(&self) -> &wgpu::RenderPipeline;
-    fn view_buffer(&self) -> &wgpu::Buffer;
-    fn bind_group_0(&self) -> &wgpu::BindGroup;
-    fn bind_group_1(&self) -> &wgpu::BindGroup;
-    fn depth_texture(&self) -> &Texture;
-    fn set_depth_texture(&mut self, texture: Texture);
-
-    fn get_type(&self) -> PipelineType;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PipelineType {
-    WORLD,
-    WATER,
-    UI,
-}
-
-pub struct Pipeline {
-    pub projection_buffer: wgpu::Buffer,
-    pub view_buffer: wgpu::Buffer,
-    pub pipeline: wgpu::RenderPipeline,
-    pub bind_group_0: wgpu::BindGroup,
-    pub bind_group_1: wgpu::BindGroup,
-    pub depth_texture: Texture,
-    pub pipeline_type: PipelineType,
 }

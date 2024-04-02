@@ -385,12 +385,24 @@ impl World {
             });
         }
         for _ in chunks.iter() {
-            let ((indices, vertex_buffer, index_buffer), chunk_ptr) =
-                receiver.recv().expect("Some chunks didn't render");
+            let (
+                (
+                    indices,
+                    water_indices,
+                    vertex_buffer,
+                    index_buffer,
+                    water_vertex_buffer,
+                    water_index_buffer,
+                ),
+                chunk_ptr,
+            ) = receiver.recv().expect("Some chunks didn't render");
             let mut chunk_mut = chunk_ptr.write().unwrap();
             chunk_mut.indices = indices;
             chunk_mut.chunk_vertex_buffer = Some(vertex_buffer);
             chunk_mut.chunk_index_buffer = Some(index_buffer);
+            chunk_mut.water_indices = water_indices;
+            chunk_mut.chunk_water_vertex_buffer = Some(water_vertex_buffer);
+            chunk_mut.chunk_water_index_buffer = Some(water_index_buffer);
         }
     }
     fn handle_outside_blocks(&mut self) {

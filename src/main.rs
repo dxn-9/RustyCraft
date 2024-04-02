@@ -43,6 +43,7 @@ pub mod state;
 pub mod structures;
 pub mod ui;
 pub mod utils;
+mod water;
 pub mod world;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {

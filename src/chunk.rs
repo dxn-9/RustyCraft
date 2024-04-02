@@ -28,6 +28,7 @@ pub struct Chunk {
     pub y: i32,
     pub blocks: BlockVec,
     pub indices: u32,
+    pub water_indices: u32,
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     pub noise_data: Arc<NoiseData>,
@@ -122,7 +123,22 @@ impl Chunk {
             false
         }
     }
-    pub fn build_mesh(&self, other_chunks: Vec<WorldChunk>) -> (u32, wgpu::Buffer, wgpu::Buffer) {
+    /*
+    Return tuple:
+    0: vertex indices     , 1: water vertex indices
+    2: vertex buffer      , 3: index buffer
+    4: water vertex buffer, 5: water index buffer */
+    pub fn build_mesh(
+        &self,
+        other_chunks: Vec<WorldChunk>,
+    ) -> (
+        u32,
+        u32,
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Buffer,
+        wgpu::Buffer,
+    ) {
         let mut water_vertex: Vec<BlockVertexData> = vec![];
         let mut water_indices: Vec<u32> = vec![];
         let mut vertex: Vec<BlockVertexData> = vec![];
@@ -176,6 +192,13 @@ impl Chunk {
                                     let chunk = chunk.read().unwrap();
                                     if chunk.exists_block_at(&target_block) {
                                         is_visible = false;
+
+                                        if chunk.block_type_at(&target_block)
+                                            == Some(BlockType::Water)
+                                            && block.block_type != BlockType::Water
+                                        {
+                                            is_visible = true;
+                                        }
                                     }
                                 }
                                 None => {
@@ -187,15 +210,21 @@ impl Chunk {
                                             target_block.z as u32,
                                             self.noise_data.clone(),
                                         )
+                                        && face_position.y >= WATER_HEIGHT_LEVEL as f32
                                     {
                                         is_visible = false
                                     };
                                 }
                             }
-                        } else if self.exists_block_at(&face_position)
-                            && self.block_type_at(&face_position) != Some(BlockType::Water)
-                        {
+                        } else if self.exists_block_at(&face_position) {
                             is_visible = false;
+
+                            // This can be a oneline if, but it gets very hard to read
+                            if self.block_type_at(&face_position) == Some(BlockType::Water)
+                                && block.block_type != BlockType::Water
+                            {
+                                is_visible = true;
+                            }
                         }
 
                         if is_visible {
@@ -244,10 +273,28 @@ impl Chunk {
                     usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
                 });
 
+        let chunk_water_vertex_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&water_vertex),
+                    label: Some(&format!("water-chunk-vertex-{}-{}", self.x, self.y)),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
+        let chunk_water_index_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&water_indices),
+                    label: Some(&format!("water-chunk-vertex-{}-{}", self.x, self.y)),
+                    usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                });
+
         (
             indices.len() as u32,
+            water_indices.len() as u32,
             chunk_vertex_buffer,
             chunk_index_buffer,
+            chunk_water_vertex_buffer,
+            chunk_water_index_buffer,
         )
     }
     pub fn get_bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
@@ -477,6 +524,7 @@ impl Chunk {
             chunk_bind_group,
             chunk_position_buffer,
             indices: 0,
+            water_indices: 0,
             outside_blocks: vec![],
             visible: true,
         };
