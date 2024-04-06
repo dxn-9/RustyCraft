@@ -28,7 +28,7 @@ impl WaterPipeline {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let shader_source = std::fs::read_to_string("src/shaders/water_shader.wgsl").unwrap();
+        let shader_source = include_str!("./shaders/water_shader.wgsl");
 
         let shader = state
             .device

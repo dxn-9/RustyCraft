@@ -74,7 +74,7 @@ struct FragmentInput {
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
     color = textureSample(diffuse, t_sampler, in.tex_coords);
-    color.a = 0.1;
+    color.a = 0.6;
 
     return color;
 }

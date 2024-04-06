@@ -1,4 +1,5 @@
 use glam::Vec3;
+use std::fs::File;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Mutex, RwLock};
 use std::{
@@ -6,6 +7,7 @@ use std::{
     thread,
 };
 
+use crate::blocks::block_type::BlockType;
 use crate::persistence::Saveable;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
@@ -17,7 +19,7 @@ pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 // There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 9;
+pub const CHUNKS_PER_ROW: u32 = 15;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 
@@ -88,7 +90,7 @@ impl World {
 
         chunks_to_rerender.push(chunk.clone());
         let mut chunk_lock = chunk.write().unwrap();
-        chunk_lock.add_block(block.clone());
+        chunk_lock.add_block(block.clone(), true);
 
         let block_borrow = block.read().unwrap();
         let block_neighbour_chunks = block_borrow.get_neighbour_chunks_coords();
@@ -181,6 +183,9 @@ impl World {
 
         for position in positions.iter() {
             if let Some(block) = self.get_blocks_absolute(position) {
+                if block.read().unwrap().block_type == BlockType::Water {
+                    continue;
+                }
                 nearby_blocks.push(block)
             };
         }
@@ -260,7 +265,10 @@ impl World {
                 let chunk = self.chunks.remove(index - o);
                 let sender = sender.clone();
                 self.thread_pool.as_ref().unwrap().execute(move || {
-                    chunk.write().unwrap().save().unwrap();
+                    let chunk = chunk.write().unwrap();
+                    if chunk.modified {
+                        chunk.save().unwrap();
+                    }
                     sender.send(()).unwrap();
                 })
             }
@@ -329,7 +337,9 @@ impl World {
     pub fn save_state(&self) {
         for chunk in self.chunks.iter() {
             let chunkbrw = chunk.read().unwrap();
-            chunkbrw.save().expect("failed to save");
+            if chunkbrw.modified {
+                chunkbrw.save().expect("failed to save");
+            }
         }
     }
     pub fn init_chunks(&mut self, player: Arc<RwLock<Player>>) {
@@ -344,7 +354,6 @@ impl World {
                 let chunk_data_layout = Arc::clone(&self.chunk_data_layout);
                 let device = Arc::clone(&self.device);
                 let queue = Arc::clone(&self.queue);
-
                 self.thread_pool.as_ref().unwrap().execute(move || {
                     let chunk = Chunk::new(
                         chunk_x,
@@ -421,7 +430,7 @@ impl World {
                 c.x == chunk_coords.0 && c.y == chunk_coords.1
             }) {
                 let mut chunkbrw = chunkptr.write().unwrap();
-                chunkbrw.add_block(block.clone());
+                chunkbrw.add_block(block.clone(), false);
                 if let None = chunks_to_rerender.iter().find(|c| Arc::ptr_eq(c, chunkptr)) {
                     chunks_to_rerender.push(chunkptr.clone());
                 };

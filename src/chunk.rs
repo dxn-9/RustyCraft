@@ -12,10 +12,13 @@ use crate::{
     world::{NoiseData, CHUNK_SIZE, MAX_TREES_PER_CHUNK, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
 use glam::Vec3;
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
+use std::io::{self, BufReader, Read};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use wgpu::util::DeviceExt;
@@ -40,10 +43,11 @@ pub struct Chunk {
     pub chunk_water_index_buffer: Option<wgpu::Buffer>,
     pub outside_blocks: Vec<Arc<RwLock<Block>>>,
     pub visible: bool,
+    pub modified: bool, // if it should be saved
 }
 
 impl Chunk {
-    pub fn add_block(&mut self, block: Arc<RwLock<Block>>) {
+    pub fn add_block(&mut self, block: Arc<RwLock<Block>>, modify_status: bool) {
         let block_borrow = block.read().unwrap();
         let block_position = block_borrow.position;
         std::mem::drop(block_borrow);
@@ -63,14 +67,17 @@ impl Chunk {
         }
 
         y_blocks[block_position.y as usize] = Some(block);
+        if modify_status {
+            self.modified = true;
+        }
     }
     pub fn remove_block(&mut self, block_r_position: &Vec3) {
-        let mut a = 0;
         let mut blocks_borrow = self.blocks.write().unwrap();
         let y_blocks = blocks_borrow
             .get_mut(((block_r_position.x * CHUNK_SIZE as f32) + block_r_position.z) as usize)
             .expect("Cannot delete oob block");
         y_blocks[block_r_position.y as usize] = None;
+        self.modified = true;
     }
     pub fn block_type_at(&self, position: &glam::Vec3) -> Option<BlockType> {
         let block = self.get_block_at_relative(position)?;
@@ -163,6 +170,10 @@ impl Chunk {
                     let faces = FaceDirections::all();
 
                     for face in faces.iter() {
+                        // For water block types, we only care about the top face
+                        if block.block_type == BlockType::Water && *face != FaceDirections::Top {
+                            continue;
+                        }
                         let mut is_visible = true;
                         let face_position = face.get_normal_vector() + position;
 
@@ -218,7 +229,6 @@ impl Chunk {
                             }
                         } else if self.exists_block_at(&face_position) {
                             is_visible = false;
-
                             // This can be a oneline if, but it gets very hard to read
                             if self.block_type_at(&face_position) == Some(BlockType::Water)
                                 && block.block_type != BlockType::Water
@@ -336,7 +346,12 @@ impl Chunk {
 
     pub fn create_blocks_data(chunk_x: i32, chunk_y: i32, noise_data: Arc<NoiseData>) -> BlockVec {
         let size = (CHUNK_SIZE * CHUNK_SIZE) as usize;
-        let mut blocks: BlockVec = Arc::new(RwLock::new(vec![vec![]; size]));
+        let blocks: BlockVec = Arc::new(RwLock::new(vec![
+            Vec::with_capacity(
+                WATER_HEIGHT_LEVEL as usize
+            );
+            size
+        ]));
 
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
@@ -358,24 +373,15 @@ impl Chunk {
 
                     curr.push(Some(block.clone()));
                 }
-                // Make sure the length is at least water level
+                // Fill with water empty blocks
                 for y in curr.len()..=(WATER_HEIGHT_LEVEL as usize) {
                     if let None = curr.get(y) {
-                        curr.push(None);
-                    }
-                }
-
-                for y in 0..=WATER_HEIGHT_LEVEL as usize {
-                    if let Some(entry) = curr.get(y) {
-                        // If there's not a block on this level, place water
-                        if let None = entry {
-                            let block = Arc::new(RwLock::new(Block::new(
-                                glam::vec3(x as f32, y as f32, z as f32),
-                                (chunk_x, chunk_y),
-                                BlockType::Water,
-                            )));
-                            curr[y as usize] = Some(block);
-                        }
+                        let block = Arc::new(RwLock::new(Block::new(
+                            glam::vec3(x as f32, y as f32, z as f32),
+                            (chunk_x, chunk_y),
+                            BlockType::Water,
+                        )));
+                        curr.push(Some(block));
                     }
                 }
             }
@@ -385,34 +391,48 @@ impl Chunk {
     }
     // TODO: Use white noise + check that the tree is not being placed on water.
     pub fn place_trees(&mut self) {
-        let number_of_trees = rand::random::<f32>();
-        let number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
+        let mut rng = StdRng::seed_from_u64((self.x * 10 * self.y) as u64);
+        let number_of_trees = rng.gen::<f32>();
+        let mut number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
 
-        for _ in 0..number_of_trees {
-            let x = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
-            let z = f32::floor(rand::random::<f32>() * CHUNK_SIZE as f32) as usize;
+        // Do a max 100 retries
+        for _ in 0..100 {
+            if number_of_trees == 0 {
+                break;
+            }
+            let mut tree_blocks = vec![];
+            {
+                let x = f32::floor(rng.gen::<f32>() * CHUNK_SIZE as f32) as usize;
+                let z = f32::floor(rng.gen::<f32>() * CHUNK_SIZE as f32) as usize;
 
-            let blocks_read = self.blocks.read().unwrap();
-            let block_column = blocks_read
-                .get((x * CHUNK_SIZE as usize) + z)
-                .expect("TODO: fix this case");
-            let highest_block = block_column
-                .last()
-                .expect("TODO: Fix this case -h")
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .absolute_position;
-            std::mem::drop(blocks_read);
+                let blocks_read = self.blocks.read().unwrap();
+                let block_column = blocks_read
+                    .get((x * CHUNK_SIZE as usize) + z)
+                    .expect("TODO: fix this case");
+                let highest_block = block_column
+                    .last()
+                    .expect("TODO: Fix this case -h")
+                    .as_ref()
+                    .unwrap()
+                    .read()
+                    .unwrap();
+                if highest_block.block_type == BlockType::Water
+                    || highest_block.block_type == BlockType::Leaf
+                {
+                    continue;
+                }
+                let highest_block_position = highest_block.absolute_position.clone();
 
-            let tree_blocks = crate::structures::Tree::get_blocks(highest_block);
-
+                tree_blocks.append(&mut crate::structures::Tree::get_blocks(
+                    highest_block_position,
+                ));
+                number_of_trees -= 1;
+            }
             for block in tree_blocks.iter() {
                 let block_brw = block.read().unwrap();
                 let block_chunk = block_brw.get_chunk_coords();
                 if block_chunk == (self.x, self.y) {
-                    self.add_block(block.clone());
+                    self.add_block(block.clone(), false);
                 } else {
                     self.outside_blocks.push(block.clone())
                 }
@@ -488,6 +508,7 @@ impl Chunk {
         chunk_data_layout: Arc<wgpu::BindGroupLayout>,
     ) -> Chunk {
         let mut was_loaded = false;
+
         let blocks = if let Ok(blocks) = Self::load(Box::new((x, y))) {
             was_loaded = true;
             blocks
@@ -511,6 +532,7 @@ impl Chunk {
         });
 
         let mut chunk = Chunk {
+            modified: false,
             chunk_water_index_buffer: None,
             chunk_water_vertex_buffer: None,
             blocks,
@@ -582,7 +604,7 @@ impl Loadable<BlockVec> for Chunk {
                 let y = coords.next().unwrap().parse::<i32>()?;
 
                 let size = (CHUNK_SIZE * CHUNK_SIZE) as usize;
-                let mut blocks: BlockVec = Arc::new(RwLock::new(vec![vec![]; size]));
+                let blocks: BlockVec = Arc::new(RwLock::new(vec![vec![]; size]));
                 if *chunk_position == (x, y) {
                     let file_contents = std::fs::read_to_string(format!("data/chunk{}_{}", x, y))?;
                     for line in file_contents.lines() {

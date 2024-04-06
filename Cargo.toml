@@ -3,7 +3,6 @@ name = "minecraft"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 winit = { version = "0.29", features = ["rwh_05", "rwh_06"] }
@@ -25,6 +24,7 @@ default-features = false
 features = ["png", "jpeg"]
 
 
+
 [build-dependencies]
 anyhow = "1.0"
 fs_extra = "1.2"
@@ -32,3 +32,5 @@ glob = "0.3"
 
 [build]
 rustflags = ["-Z", "threads=8"]
+[profile.release]
+debug = 1
