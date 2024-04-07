@@ -23,6 +23,8 @@ pub(crate) mod math_utils {
 pub(crate) mod noise {
     use std::fmt::Debug;
 
+    use crate::world::RNG_SEED;
+
     use super::*;
     use glam::Vec2;
 
@@ -41,7 +43,7 @@ pub(crate) mod noise {
     pub fn shuffle<T: Copy + Debug>(vec: &mut Vec<T>) -> &mut Vec<T> {
         use rand::prelude::*;
 
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = StdRng::seed_from_u64(RNG_SEED);
 
         for i in (0..vec.len()).rev() {
             let a: usize = if i > 0 {

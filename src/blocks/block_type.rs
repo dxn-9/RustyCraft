@@ -1,5 +1,7 @@
-use rand::random;
+use rand::{random, rngs::StdRng, Rng, SeedableRng};
 use std::any::Any;
+
+use crate::world::{RNG_SEED, WATER_HEIGHT_LEVEL};
 
 use super::block::{FaceDirections, TexturedBlock};
 
@@ -49,6 +51,11 @@ impl BlockTypeConfigs {
                 textures: [FaceTexture(3), FaceTexture(3), FaceTexture(3)],
                 is_translucent: false,
             },
+            BlockType::Sand => BlockTypeConfigs {
+                id: 6,
+                textures: [FaceTexture(9), FaceTexture(9), FaceTexture(9)],
+                is_translucent: false,
+            },
         }
     }
 }
@@ -62,6 +69,7 @@ pub enum BlockType {
     Wood,
     Leaf,
     Stone,
+    Sand,
 }
 impl BlockType {
     pub fn get_config(&self) -> BlockTypeConfigs {
@@ -78,28 +86,44 @@ impl BlockType {
             3 => Self::Wood,
             4 => Self::Leaf,
             5 => Self::Stone,
+            6 => Self::Sand,
             _ => panic!("Invalid id"),
         }
     }
 }
+fn calc_scalar(y: u32, t: Threshold) -> f32 {
+    (y as f32 - t[0] as f32) / (t[1] as f32 - t[0] as f32)
+}
+// Threshold: ( lowerbound , upperbound )
+type Threshold = [u32; 2];
+const STONE_THRESHOLD: Threshold = [15, 24];
+const SAND_THRESHOLD: Threshold = [WATER_HEIGHT_LEVEL as u32, WATER_HEIGHT_LEVEL as u32 + 2];
 impl BlockType {
-    const U_STONE_THRESHOLD: u32 = 20;
-    const L_STONE_THRESHOLD: u32 = 1;
+    pub fn from_position(x: u32, y: u32, z: u32) -> BlockType {
+        let mut rng = StdRng::seed_from_u64(RNG_SEED + (y * x * z) as u64);
 
-    pub fn from_y_position(y: u32) -> BlockType {
-        if y > Self::U_STONE_THRESHOLD {
-            let t: f32 = random();
-            let scaler = (y as f32 - Self::U_STONE_THRESHOLD as f32) / 10.0;
-            let res = t + scaler;
-            if res > 1.0 {
+        if y <= SAND_THRESHOLD[0] {
+            BlockType::Sand
+        } else if y <= SAND_THRESHOLD[1] {
+            let r = rng.gen::<f32>();
+            let s = calc_scalar(y, SAND_THRESHOLD);
+            if r + s > 1.0 {
+                BlockType::Dirt
+            } else {
+                BlockType::Sand
+            }
+        } else if y < STONE_THRESHOLD[0] {
+            BlockType::Dirt
+        } else if y <= STONE_THRESHOLD[1] {
+            let r = rng.gen::<f32>();
+            let s = calc_scalar(y, STONE_THRESHOLD);
+            if r + s >= 1.0 {
                 BlockType::Stone
             } else {
                 BlockType::Dirt
             }
-        } else if y < Self::L_STONE_THRESHOLD {
-            BlockType::Stone
         } else {
-            BlockType::Dirt
+            BlockType::Stone
         }
     }
 }

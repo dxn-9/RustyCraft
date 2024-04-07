@@ -14,6 +14,7 @@ use crate::persistence::Saveable;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
 
+pub const RNG_SEED: u64 = 0;
 pub const CHUNK_SIZE: u32 = 16;
 pub const CHUNK_HEIGHT: u8 = u8::MAX;
 pub const NOISE_SIZE: u32 = 1024;
@@ -21,7 +22,7 @@ pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 
-pub const CHUNKS_PER_ROW: u32 = 25;
+pub const CHUNKS_PER_ROW: u32 = 9;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 

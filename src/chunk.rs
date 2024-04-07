@@ -2,7 +2,7 @@ use crate::blocks::block_type::BlockType::Water;
 use crate::persistence::{Loadable, Saveable};
 use crate::player::Player;
 use crate::utils::math_utils::Plane;
-use crate::world::{WorldChunk, WATER_HEIGHT_LEVEL};
+use crate::world::{WorldChunk, RNG_SEED, WATER_HEIGHT_LEVEL};
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
@@ -360,7 +360,7 @@ impl Chunk {
                 let curr = &mut blocks.write().unwrap()[((x * CHUNK_SIZE) + z) as usize];
 
                 for y in 0..=y_top {
-                    let block_type = match BlockType::from_y_position(y) {
+                    let block_type = match BlockType::from_position(x, y, z) {
                         BlockType::Dirt if y == y_top => BlockType::Grass,
                         b => b,
                     };
@@ -391,7 +391,7 @@ impl Chunk {
     }
     // TODO: Use white noise + check that the tree is not being placed on water.
     pub fn place_trees(&mut self) {
-        let mut rng = StdRng::seed_from_u64((self.x * 10 * self.y) as u64);
+        let mut rng = StdRng::seed_from_u64((self.x * 10 * self.y) as u64 + RNG_SEED);
         let number_of_trees = rng.gen::<f32>();
         let mut number_of_trees = f32::floor(number_of_trees * MAX_TREES_PER_CHUNK as f32) as u32;
 
