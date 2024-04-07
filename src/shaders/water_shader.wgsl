@@ -5,7 +5,6 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tex_coords: vec2<f32>,
-    @location(3) ao: f32,
 
 }
 struct InstanceInput {
@@ -20,8 +19,7 @@ struct VertexOutput {
     @location(1) normals: vec3<f32>,
     @location(2) chunk_position: vec2<i32>,
     @location(3) block_type: u32,
-    @location(4) ao: f32,
-    @location(5) fog: f32
+    @location(4) fog: f32
 }
 
 
@@ -29,6 +27,8 @@ struct VertexOutput {
 var<uniform> projection: mat4x4<f32>;
 @group(0) @binding(1)
 var<uniform> view: mat4x4<f32>;
+@group(0) @binding(2)
+var <uniform> chunks_per_row: u32;
 @group(2) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
 @group(3) @binding(0)
@@ -45,11 +45,12 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
 
     let player_dist = distance(player_position, block_position);
 
-    out.fog = min(pow(player_dist / 80.0, 6.0), 1.0);
+    let r = f32(16 * (i32(chunks_per_row) / 2));
+    out.fog = clamp((player_dist - r) / 8.0, 0.0, 1.0);
+
     out.clip_position = projection * view * (vec4<f32>(block_position, 1.0));
     out.normals = in.normal;
     out.tex_coords = in.tex_coords;
-    out.ao = in.ao;
 
     return out;
 }
@@ -65,8 +66,7 @@ struct FragmentInput {
         @location(1) normals: vec3<f32>,
         @location(2) current_chunk: vec2<i32>,
         @location(3) block_type: u32,
-        @location(4) ao: f32,
-        @location(5) fog: f32
+        @location(4) fog: f32
 }
 
 
@@ -75,6 +75,8 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
     color = textureSample(diffuse, t_sampler, in.tex_coords);
     color.a = 0.6;
+    color = mix(color, vec4<f32>(0.03, 0.64, 0.97, 1.0), in.fog);
+
 
     return color;
 }

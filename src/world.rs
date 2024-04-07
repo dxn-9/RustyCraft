@@ -6,6 +6,8 @@ use std::{
     sync::{mpsc, Arc},
     thread,
 };
+use wgpu::util::DeviceExt;
+use wgpu::BindGroupEntry;
 
 use crate::blocks::block_type::BlockType;
 use crate::persistence::Saveable;
@@ -18,8 +20,8 @@ pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
-// There will be a CHUNKS_PER_ROW * CHUNKS_PER_ROW region
-pub const CHUNKS_PER_ROW: u32 = 15;
+
+pub const CHUNKS_PER_ROW: u32 = 25;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 

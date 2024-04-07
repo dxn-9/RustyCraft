@@ -23,7 +23,7 @@ pub struct WaterPipeline {
     pub pipeline_type: crate::pipeline::PipelineType,
 }
 impl WaterPipeline {
-    // TODO: This is very ugly and should be abstracted for all pipelines
+    // TODO: This is very ugly and should be abstracted for all pipelines. Also doubles the resource for uniforms etc.
     pub fn new(state: &State) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
@@ -57,6 +57,16 @@ impl WaterPipeline {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
+        // Constant bindgroup for chunks per row
+        let world_chunk_per_row_buffer =
+            state
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&[crate::world::CHUNKS_PER_ROW]),
+                    label: Some("world_chunk_per_row"),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
         // Bind groups
         let bind_group_0_layout =
             state
@@ -84,6 +94,16 @@ impl WaterPipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::VERTEX,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -97,6 +117,10 @@ impl WaterPipeline {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: view_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: world_chunk_per_row_buffer.as_entire_binding(),
                 },
             ],
         });

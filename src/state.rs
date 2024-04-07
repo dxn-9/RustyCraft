@@ -322,7 +322,7 @@ impl State {
         let player = self.player.read().unwrap();
 
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut main_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -350,17 +350,17 @@ impl State {
             });
             let pipeline = &self.pipelines[0];
 
-            rpass.set_pipeline(pipeline.pipeline());
+            main_rpass.set_pipeline(pipeline.pipeline());
 
-            rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
-            rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+            main_rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
+            main_rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
 
-            rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
+            main_rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
 
             for chunk in chunks.iter() {
                 if chunk.visible {
-                    rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                    rpass.set_vertex_buffer(
+                    main_rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
+                    main_rpass.set_vertex_buffer(
                         0,
                         chunk
                             .chunk_vertex_buffer
@@ -368,7 +368,7 @@ impl State {
                             .expect("Vertex buffer not initiated")
                             .slice(..),
                     );
-                    rpass.set_index_buffer(
+                    main_rpass.set_index_buffer(
                         chunk
                             .chunk_index_buffer
                             .as_ref()
@@ -376,7 +376,7 @@ impl State {
                             .slice(..),
                         wgpu::IndexFormat::Uint32,
                     );
-                    rpass.draw_indexed(0..chunk.indices, 0, 0..1);
+                    main_rpass.draw_indexed(0..chunk.indices, 0, 0..1);
                 };
             }
         }

@@ -68,6 +68,16 @@ impl Pipeline {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
+        // Constant bindgroup for chunks per row
+        let world_chunk_per_row_buffer =
+            state
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: bytemuck::cast_slice(&[crate::world::CHUNKS_PER_ROW]),
+                    label: Some("world_chunk_per_row"),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
         // Bind groups
         let bind_group_0_layout =
             state
@@ -95,6 +105,16 @@ impl Pipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::VERTEX,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -108,6 +128,10 @@ impl Pipeline {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: view_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: world_chunk_per_row_buffer.as_entire_binding(),
                 },
             ],
         });

@@ -29,6 +29,9 @@ struct VertexOutput {
 var<uniform> projection: mat4x4<f32>;
 @group(0) @binding(1) 
 var<uniform> view: mat4x4<f32>;
+@group(0) @binding(2)
+var <uniform> chunks_per_row: u32;
+
 @group(2) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
 @group(3) @binding(0)
@@ -45,7 +48,10 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
 
     let player_dist = distance(player_position, block_position);
 
-    out.fog = min(pow(player_dist / 80.0, 6.0), 1.0);
+    let r = f32(16 * (i32(chunks_per_row) / 2));
+    out.fog = clamp((player_dist - r) / 8.0, 0.0, 1.0);
+
+    // out.fog = min(pow(player_dist / 80.0, 6.0), 1.0);
     out.clip_position = projection * view * (vec4<f32>(block_position, 1.0));
     out.normals = in.normal;
     out.tex_coords = in.tex_coords;
