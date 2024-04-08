@@ -1,9 +1,11 @@
 use std::sync::{Mutex, RwLock};
+use std::time::Instant;
 use std::{f32::consts, sync::Arc};
 
 use crate::blocks::block::Block;
 use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
+use crate::perf;
 use crate::persistence::Saveable;
 use crate::pipeline::{Pipeline, PipelineTrait};
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
@@ -246,6 +248,7 @@ impl State {
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
         let mut collisions = vec![];
 
+        let start_update = Instant::now();
         if let Some(nearby_blocks) = self.world.get_blocks_nearby(Arc::clone(&self.player)) {
             for block in nearby_blocks.iter() {
                 let block = block.read().unwrap();
@@ -315,7 +318,7 @@ impl State {
         let chunks = self
             .world
             .chunks
-            .iter()
+            .values()
             .map(|f| f.read().unwrap())
             .collect::<Vec<_>>();
 
