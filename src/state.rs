@@ -314,10 +314,8 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("command_encoder"),
             });
-
-        let chunks = self
-            .world
-            .chunks
+        let chunk_map = self.world.chunks.read().unwrap();
+        let chunks = chunk_map
             .values()
             .map(|f| f.read().unwrap())
             .collect::<Vec<_>>();

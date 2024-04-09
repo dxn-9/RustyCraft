@@ -24,7 +24,7 @@ pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 
-pub const CHUNKS_PER_ROW: u32 = 25;
+pub const CHUNKS_PER_ROW: u32 = 60;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 
@@ -41,8 +41,12 @@ pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
 pub type NoiseData = Vec<f32>;
 
 pub type WorldChunk = Arc<RwLock<Chunk>>;
+pub type ChunkMap = Arc<RwLock<HashMap<(i32, i32), WorldChunk>>>;
+
+// TODO: It should be better to unsafely pass the hashmap between threads, since we never modify it except when we're done
+// and it will be save since every chunk has its own lock.
 pub struct World {
-    pub chunks: HashMap<(i32, i32), WorldChunk>,
+    pub chunks: ChunkMap,
     pub thread_pool: Option<ThreadPool>,
     pub seed: u32,
     pub noise_data: Arc<NoiseData>,
@@ -52,23 +56,23 @@ pub struct World {
 }
 
 impl World {
-    pub fn get_other_chunks(&self, chunk_ptr: WorldChunk) -> Vec<WorldChunk> {
-        self.chunks
-            .values()
-            .filter_map(|c| {
-                return if !Arc::ptr_eq(&chunk_ptr, c) {
-                    Some(c.clone())
-                } else {
-                    None
-                };
-            })
-            .collect()
-    }
+    // pub fn get_other_chunks(&self, chunk_ptr: WorldChunk) -> Vec<WorldChunk> {
+    //     self.chunks
+    //         .values()
+    //         .filter_map(|c| {
+    //             return if !Arc::ptr_eq(&chunk_ptr, c) {
+    //                 Some(c.clone())
+    //             } else {
+    //                 None
+    //             };
+    //         })
+    //         .collect()
+    // }
     pub fn place_block(&mut self, block: Arc<RwLock<Block>>) {
         let block_borrow = block.read().unwrap();
         let mut chunks_to_rerender = vec![block_borrow.get_chunk_coords()];
-        let chunk = self
-            .chunks
+        let chunk_map = self.chunks.read().unwrap();
+        let chunk = chunk_map
             .get(&chunks_to_rerender[0])
             .expect("Cannot delete a block from unloaded chunk");
 
@@ -96,8 +100,8 @@ impl World {
     pub fn remove_block(&mut self, block: Arc<RwLock<Block>>) {
         let block_borrow = block.read().unwrap();
         let mut chunks_to_rerender = vec![block_borrow.get_chunk_coords()];
-        let chunk = self
-            .chunks
+        let chunk_map = self.chunks.read().unwrap();
+        let chunk = chunk_map
             .get(&chunks_to_rerender[0])
             .expect("Cannot delete a block from unloaded chunk");
 
@@ -113,7 +117,8 @@ impl World {
     pub fn get_blocks_absolute(&self, position: &Vec3) -> Option<Arc<RwLock<Block>>> {
         let (chunk_x, chunk_y) = position.get_chunk_from_position_absolute();
 
-        let chunk = self.chunks.get(&(chunk_x, chunk_y))?;
+        let chunk_map = self.chunks.read().unwrap();
+        let chunk = chunk_map.get(&(chunk_x, chunk_y))?;
         let chunk = chunk.read().unwrap();
 
         let relative_position = position.relative_from_absolute();
@@ -206,7 +211,7 @@ impl World {
                 .collect();
 
             let mut keys_to_remove = vec![];
-            for key in self.chunks.keys() {
+            for key in self.chunks.read().unwrap().keys() {
                 // let chunk = chunk.read().unwrap();
                 if (delta.1 != 0 && key.1 == chunk_y_remove)
                     || (delta.0 != 0 && key.0 == chunk_x_remove)
@@ -218,7 +223,12 @@ impl World {
             // Save the unloaded chunks
             let (sender, receiver) = mpsc::channel();
             for key in keys_to_remove.iter() {
-                let chunk = self.chunks.remove(key).expect("Something went wrong");
+                let chunk = self
+                    .chunks
+                    .write()
+                    .unwrap()
+                    .remove(key)
+                    .expect("Something went wrong");
                 let sender = sender.clone();
                 self.thread_pool.as_ref().unwrap().execute(move || {
                     let chunk = chunk.write().unwrap();
@@ -260,6 +270,8 @@ impl World {
             for _ in 0..chunks_added {
                 let chunk = receiver.recv().unwrap();
                 self.chunks
+                    .write()
+                    .unwrap()
                     .insert((chunk.x, chunk.y), Arc::new(RwLock::new(chunk)));
             }
             self.handle_outside_blocks();
@@ -272,7 +284,7 @@ impl World {
         // Update visible chunks based on player position and direction
         {
             let (sender, receiver) = mpsc::channel();
-            for chunk in self.chunks.values() {
+            for chunk in self.chunks.read().unwrap().values() {
                 let chunk = Arc::clone(&chunk);
                 let sender = sender.clone();
                 let player = Arc::clone(&player);
@@ -282,7 +294,7 @@ impl World {
                     sender.send(()).unwrap();
                 });
             }
-            for _ in self.chunks.iter() {
+            for _ in self.chunks.read().unwrap().iter() {
                 receiver.recv().unwrap();
             }
         }
@@ -292,7 +304,7 @@ impl World {
     }
 
     pub fn save_state(&self) {
-        for chunk in self.chunks.values() {
+        for chunk in self.chunks.read().unwrap().values() {
             let chunkbrw = chunk.read().unwrap();
             if chunkbrw.modified {
                 chunkbrw.save().expect("failed to save");
@@ -327,12 +339,14 @@ impl World {
         for _ in 0..CHUNKS_PER_ROW * CHUNKS_PER_ROW {
             let chunk = receiver.recv().expect("Some chunks are missing");
             self.chunks
+                .write()
+                .unwrap()
                 .insert((chunk.x, chunk.y), Arc::new(RwLock::new(chunk)));
         }
 
         self.handle_outside_blocks();
         // this is kinda slow
-        self.render_chunks(self.chunks.keys().collect::<Vec<_>>());
+        self.render_chunks(self.chunks.read().unwrap().keys().collect::<Vec<_>>());
     }
     // chunks: slice containing the chunk to re-render
     fn render_chunks<I>(&self, chunk_keys: Vec<I>)
@@ -342,15 +356,17 @@ impl World {
         let (sender, receiver) = mpsc::channel();
 
         for key in chunk_keys.iter() {
-            if let Some(chunk) = self.chunks.get(key.borrow()) {
+            if let Some(chunk) = self.chunks.read().unwrap().get(key.borrow()) {
                 let sender = sender.clone();
-                let other = self.get_other_chunks(chunk.clone());
+                // This is extremely slow O(n^2)
+                // let other = self.get_other_chunks(chunk.clone());
                 let chunk = chunk.clone();
+                let chunk_map = self.chunks.clone();
 
                 self.thread_pool.as_ref().unwrap().execute(move || {
                     let chunk_ptr = chunk.clone();
                     let chunk = chunk.read().unwrap();
-                    let res = chunk.build_mesh(other);
+                    let res = chunk.build_mesh(chunk_map);
                     sender.send((res, chunk_ptr)).unwrap();
                 });
             }
@@ -378,7 +394,7 @@ impl World {
     }
     fn handle_outside_blocks(&mut self) {
         let mut blocks_to_add = vec![];
-        for chunk in self.chunks.values() {
+        for chunk in self.chunks.read().unwrap().values() {
             let mut chunkbrw = chunk.write().unwrap();
             blocks_to_add.append(&mut chunkbrw.outside_blocks);
         }
@@ -387,7 +403,7 @@ impl World {
 
         for block in blocks_to_add.iter() {
             let chunk_coords = block.read().unwrap().get_chunk_coords();
-            if let Some(chunkptr) = self.chunks.get(&chunk_coords) {
+            if let Some(chunkptr) = self.chunks.read().unwrap().get(&chunk_coords) {
                 let mut chunkbrw = chunkptr.write().unwrap();
                 chunkbrw.add_block(block.clone(), false);
                 if let None = chunks_to_rerender.iter().find(|c| Arc::ptr_eq(c, chunkptr)) {
@@ -409,7 +425,7 @@ impl World {
 
         World {
             chunk_data_layout,
-            chunks: HashMap::new(),
+            chunks: Arc::new(RwLock::new(HashMap::new())),
             noise_data,
             device,
             queue,

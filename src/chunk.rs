@@ -2,7 +2,7 @@ use crate::blocks::block_type::BlockType::Water;
 use crate::persistence::{Loadable, Saveable};
 use crate::player::Player;
 use crate::utils::math_utils::Plane;
-use crate::world::{WorldChunk, RNG_SEED, WATER_HEIGHT_LEVEL};
+use crate::world::{ChunkMap, WorldChunk, RNG_SEED, WATER_HEIGHT_LEVEL};
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
@@ -137,7 +137,7 @@ impl Chunk {
     4: water vertex buffer, 5: water index buffer */
     pub fn build_mesh(
         &self,
-        other_chunks: Vec<WorldChunk>,
+        other_chunks: ChunkMap,
     ) -> (
         u32,
         u32,
@@ -150,15 +150,14 @@ impl Chunk {
         let mut water_indices: Vec<u32> = vec![];
         let mut vertex: Vec<BlockVertexData> = vec![];
         let mut indices: Vec<u32> = vec![];
-        let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> =
-            vec![((self.x, self.y), self.blocks.clone())];
+        let mut adjacent_chunks: Vec<((i32, i32), BlockVec)> = vec![];
 
-        for chunk in &other_chunks {
-            let chunk_read = chunk.read().unwrap();
-            if chunk_read.x == self.x + 1 || chunk_read.x == self.x - 1 {
-                adjacent_chunks.push(((chunk_read.x, chunk_read.y), chunk_read.blocks.clone()));
-            } else if chunk_read.y == self.y + 1 || chunk_read.y == self.y - 1 {
-                adjacent_chunks.push(((chunk_read.x, chunk_read.y), chunk_read.blocks.clone()));
+        for x in self.x - 1..=self.x + 1 {
+            for y in self.y - 1..=self.y + 1 {
+                if let Some(chunk) = other_chunks.read().unwrap().get(&(x, y)) {
+                    let chunk_read = chunk.read().unwrap();
+                    adjacent_chunks.push(((x, y), chunk_read.blocks.clone()));
+                }
             }
         }
 
@@ -191,10 +190,13 @@ impl Chunk {
                                 (face_position.z + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
                             );
 
-                            let target_chunk = other_chunks.iter().find(|c| {
-                                let c = c.read().unwrap();
-                                c.x == target_chunk_x && c.y == target_chunk_y
-                            });
+                            let other_chunks_brw = other_chunks.read().unwrap();
+                            let target_chunk =
+                                other_chunks_brw.get(&(target_chunk_x, target_chunk_y));
+                            // let target_chunk = other_chunks.iter().find(|c| {
+                            //     let c = c.read().unwrap();
+                            //     c.x == target_chunk_x && c.y == target_chunk_y
+                            // });
                             // If there's a chunk loaded in memory then check that, else it means we're on a edge and we can
                             // Calculate the block's height when the chunk gets generated
                             // TODO: Check for saved file chunk
