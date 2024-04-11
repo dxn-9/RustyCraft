@@ -9,6 +9,7 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::BindGroupLayout;
 
 use crate::blocks::block::{Block, FaceDirections};
+use crate::blocks::block_type::BlockType;
 use crate::collision::{CollisionPoint, RayResult};
 use crate::persistence::{Loadable, Saveable};
 use crate::{
@@ -42,6 +43,7 @@ pub struct Player {
     pub current_chunk: (i32, i32),
     pub on_ground: bool,
     pub is_jumping: bool,
+    pub in_water: bool,
     pub jump_action_start: Option<Instant>,
     pub is_ghost: bool,
     pub facing_block: Option<Arc<RwLock<Block>>>,
@@ -72,8 +74,8 @@ impl Player {
     // Gets the block that the player is facing
     pub fn get_facing_block<'a>(
         &mut self,
-        collisions: &'a Vec<CollisionBox>,
-    ) -> Option<(&'a CollisionBox, FaceDirections)> {
+        blocks: &'a Vec<Arc<RwLock<Block>>>,
+    ) -> Option<(CollisionBox, FaceDirections)> {
         let forward = self.camera.get_forward_dir();
         let mut ray_results: Vec<RayResult> = vec![];
 
@@ -82,11 +84,13 @@ impl Player {
             origin: self.camera.eye + PLAYER_VIEW_OFFSET,
         };
 
-        for collision in collisions.iter() {
-            if let Some(intersection_points) = ray.intersects_box(collision) {
+        for block in blocks.iter() {
+            if let Some(intersection_points) =
+                ray.intersects_box(&block.read().unwrap().collision_box)
+            {
                 ray_results.push(RayResult {
                     points: intersection_points,
-                    collision,
+                    collision: block.read().unwrap().collision_box.clone(),
                 })
             }
         }
@@ -104,7 +108,7 @@ impl Player {
 
             if closest_point.distance(self.camera.eye) < max_distance {
                 max_distance = closest_point.distance(self.camera.eye);
-                block_collision = Some(result.collision);
+                block_collision = Some(&result.collision);
                 point = Some(closest_point.clone());
             }
         }
@@ -124,7 +128,7 @@ impl Player {
                         face_direction = Some(face);
                     }
                 }
-                Some((block_collision, *face_direction.unwrap()))
+                Some((block_collision.clone(), *face_direction.unwrap()))
             }
             _ => None,
         };
@@ -141,7 +145,7 @@ impl Player {
         &mut self,
         direction: &Vec3,
         delta_time: f32,
-        collisions: &Vec<CollisionBox>,
+        blocks: &Vec<Arc<RwLock<Block>>>,
     ) {
         let input_direction = direction;
         let player_collision = self.get_collision();
@@ -172,22 +176,38 @@ impl Player {
             return;
         }
 
+        self.in_water = false;
         let can_move_z = player_collision.clone() + glam::vec3(0.0, 0.0, velocity.z);
-        for collision in collisions.iter() {
-            if can_move_z.intersects(collision) {
+        let can_move_x = player_collision.clone() + glam::vec3(velocity.x, 0.0, 0.0);
+
+        for block in blocks.iter() {
+            let block_read = block.read().unwrap();
+            if can_move_z.intersects(&block_read.collision_box)
+                && block_read.block_type != BlockType::Water
+            {
                 velocity.z = 0.0;
             }
-        }
-        let can_move_x = player_collision.clone() + glam::vec3(velocity.x, 0.0, 0.0);
-        for collision in collisions.iter() {
-            if can_move_x.intersects(collision) {
+
+            if can_move_x.intersects(&block_read.collision_box)
+                && block_read.block_type != BlockType::Water
+            {
                 velocity.x = 0.0;
+            }
+
+            if player_collision.intersects(&block_read.collision_box)
+                && block_read.block_type == BlockType::Water
+            {
+                self.in_water = true;
             }
         }
 
         velocity.y -= GRAVITY * delta_time;
         self.on_ground = false;
 
+        if self.in_water {
+            // Slow down gravity in water
+            velocity.y *= 0.7;
+        }
         if self.is_jumping {
             let now = Instant::now();
             let delta_jump = now
@@ -203,8 +223,10 @@ impl Player {
         }
 
         let can_move_y = player_collision.clone() + glam::vec3(0.0, velocity.y, 0.0);
-        for collision in collisions.iter() {
-            if can_move_y.intersects(collision) {
+        for block in blocks.iter() {
+            if can_move_y.intersects(&block.read().unwrap().collision_box)
+                && block.read().unwrap().block_type != BlockType::Water
+            {
                 velocity.y = 0.0;
                 self.on_ground = true; // This can make it infinite to jump if there is a block above
             }
@@ -216,8 +238,6 @@ impl Player {
         }
 
         self.camera.eye += velocity;
-
-        self.camera.needs_update = true;
     }
 }
 pub struct Camera {

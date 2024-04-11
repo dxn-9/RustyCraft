@@ -104,17 +104,14 @@ impl World {
 
         return Some(block);
     }
-    pub fn get_blocks_nearby(
-        &self,
-        player: Arc<RwLock<Player>>,
-    ) -> Option<Vec<Arc<RwLock<Block>>>> {
+    pub fn get_blocks_nearby(&self, player: Arc<RwLock<Player>>) -> Vec<Arc<RwLock<Block>>> {
         let player = player.read().unwrap();
         let mut positions = vec![];
         let mut nearby_blocks = vec![];
 
-        for i in -10..=10 {
-            for j in -10..=10 {
-                for h in -10..=10 {
+        for i in -5..=5 {
+            for j in -5..=5 {
+                for h in -5..=5 {
                     positions.push(player.camera.eye + glam::vec3(i as f32, h as f32, j as f32));
                 }
             }
@@ -126,7 +123,7 @@ impl World {
             };
         }
 
-        return Some(nearby_blocks);
+        return nearby_blocks;
     }
     pub fn update(
         &mut self,

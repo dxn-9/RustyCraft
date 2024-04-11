@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use super::block_type::BlockType;
 use crate::chunk::BlockVec;
+use crate::collision::CollisionBox;
 use crate::effects::ao::{convert_ao_u8_to_f32, from_vertex_position};
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
@@ -12,6 +13,7 @@ use std::sync::{Arc, MutexGuard, RwLock};
 pub struct Block {
     pub position: glam::Vec3,
     pub absolute_position: glam::Vec3,
+    pub collision_box: CollisionBox,
     pub block_type: BlockType,
 }
 
@@ -115,7 +117,13 @@ impl Block {
             position.y,
             (chunk.1 * CHUNK_SIZE as i32 + position.z as i32) as f32,
         );
+        let collision_box = CollisionBox::from_block_position(
+            absolute_position.x,
+            absolute_position.y,
+            absolute_position.z,
+        );
         Block {
+            collision_box,
             position,
             block_type,
             absolute_position,

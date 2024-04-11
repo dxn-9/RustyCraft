@@ -78,6 +78,7 @@ impl State {
         let current_chunk = camera.eye.get_chunk_from_position_absolute();
         let player = Arc::new(RwLock::new(Player {
             camera,
+            in_water: false,
             current_chunk,
             is_jumping: false,
             on_ground: false,
@@ -179,7 +180,7 @@ impl State {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => {
-                if player.on_ground {
+                if player.on_ground || player.in_water {
                     player.is_jumping = true;
                     player.jump_action_start = Some(std::time::Instant::now());
                 }
@@ -246,28 +247,16 @@ impl State {
         }
     }
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
-        let mut collisions = vec![];
+        let nearby_blocks = self.world.get_blocks_nearby(Arc::clone(&self.player));
 
-        let start_update = Instant::now();
-        if let Some(nearby_blocks) = self.world.get_blocks_nearby(Arc::clone(&self.player)) {
-            for block in nearby_blocks.iter() {
-                let block = block.read().unwrap();
-                let collision = CollisionBox::from_block_position(
-                    block.absolute_position.x,
-                    block.position.y,
-                    block.absolute_position.z,
-                );
-                collisions.push(collision);
-            }
-        };
         let mut player = self.player.write().unwrap();
         player.move_camera(
             &self.camera_controller.movement_vector,
             delta_time,
-            &collisions,
+            &nearby_blocks,
         );
         player.update();
-        if let Some((block, face_dir)) = player.get_facing_block(&collisions) {
+        if let Some((block, face_dir)) = player.get_facing_block(&nearby_blocks) {
             let block = self.world.get_blocks_absolute(&block.to_block_position());
 
             player.facing_block = block;

@@ -86,9 +86,9 @@ impl Ray {
 }
 
 #[derive(Debug)]
-pub struct RayResult<'a> {
+pub struct RayResult {
     pub points: Vec<glam::Vec3>,
-    pub collision: &'a CollisionBox,
+    pub collision: CollisionBox,
 }
 
 impl CollisionPoint {
