@@ -43,7 +43,7 @@ pub struct Chunk {
     pub chunk_water_index_buffer: Option<wgpu::Buffer>,
     pub outside_blocks: Vec<Arc<RwLock<Block>>>,
     pub visible: bool,
-    pub modified: bool, // if it should be saved
+    pub modified: bool, // if true, it will be saved
 }
 
 impl Chunk {
@@ -57,13 +57,8 @@ impl Chunk {
             .get_mut(((block_position.x * CHUNK_SIZE as f32) + block_position.z) as usize)
             .expect("Cannot add oob block");
 
-        let start_len = y_blocks.len();
-
-        /* Make sure we don't have enough space in the vector */
-        for i in start_len..=block_position.y as usize {
-            if i >= y_blocks.len() {
-                y_blocks.push(None);
-            }
+        if block_position.y as usize >= y_blocks.len() {
+            y_blocks.resize(block_position.y as usize + 1, None);
         }
 
         y_blocks[block_position.y as usize] = Some(block);
@@ -215,16 +210,15 @@ impl Chunk {
                                     }
                                 }
                                 None => {
-                                    if face_position.y as u32
-                                        <= Chunk::get_height_value(
-                                            target_chunk_x,
-                                            target_chunk_y,
-                                            target_block.x as u32,
-                                            target_block.z as u32,
-                                            self.noise_data.clone(),
-                                        )
-                                        && face_position.y >= WATER_HEIGHT_LEVEL as f32
-                                    {
+                                    let h = Chunk::get_height_value(
+                                        target_chunk_x,
+                                        target_chunk_y,
+                                        target_block.x as u32,
+                                        target_block.z as u32,
+                                        self.noise_data.clone(),
+                                    );
+
+                                    if face_position.y as u32 <= h {
                                         is_visible = false
                                     };
                                 }

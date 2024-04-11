@@ -24,7 +24,7 @@ pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 
-pub const CHUNKS_PER_ROW: u32 = 60;
+pub const CHUNKS_PER_ROW: u32 = 9;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 
@@ -56,61 +56,39 @@ pub struct World {
 }
 
 impl World {
-    // pub fn get_other_chunks(&self, chunk_ptr: WorldChunk) -> Vec<WorldChunk> {
-    //     self.chunks
-    //         .values()
-    //         .filter_map(|c| {
-    //             return if !Arc::ptr_eq(&chunk_ptr, c) {
-    //                 Some(c.clone())
-    //             } else {
-    //                 None
-    //             };
-    //         })
-    //         .collect()
-    // }
     pub fn place_block(&mut self, block: Arc<RwLock<Block>>) {
         let block_borrow = block.read().unwrap();
         let mut chunks_to_rerender = vec![block_borrow.get_chunk_coords()];
+        chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
+
         let chunk_map = self.chunks.read().unwrap();
         let chunk = chunk_map
             .get(&chunks_to_rerender[0])
             .expect("Cannot delete a block from unloaded chunk");
 
-        let mut chunk_lock = chunk.write().unwrap();
-        chunk_lock.add_block(block.clone(), true);
-
-        let block_borrow = block.read().unwrap();
-        chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
-        std::mem::drop(chunk_lock);
-
-        // if block_neighbour_chunks.len() > 0 {
-        //     for neighbour_chunk in block_neighbour_chunks {
-        //         let neighbour_chunk = self
-        //             .chunks
-        //             .get(&neighbour_chunk)
-        //             .expect("Cannot destroy a block without neighbour being loaded");
-
-        //         chunks_to_rerender.push(neighbour_chunk.clone());
-        //     }
-        // }
+        {
+            let mut chunk_lock = chunk.write().unwrap();
+            chunk_lock.add_block(block.clone(), true);
+            // Drop chunk lock write
+        }
 
         self.render_chunks(chunks_to_rerender)
-        // self.render_chunks(block_neighbour_chunks.append(&mut vec![chunk_coords]));
     }
     pub fn remove_block(&mut self, block: Arc<RwLock<Block>>) {
         let block_borrow = block.read().unwrap();
         let mut chunks_to_rerender = vec![block_borrow.get_chunk_coords()];
+        chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
+
         let chunk_map = self.chunks.read().unwrap();
         let chunk = chunk_map
             .get(&chunks_to_rerender[0])
             .expect("Cannot delete a block from unloaded chunk");
 
-        let mut chunk_lock = chunk.write().unwrap();
-        chunk_lock.remove_block(&(block_borrow.position));
-        // chunk_lock.build_mesh(self.get_other_chunks(chunk.clone()));
-        chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
-        // I hate this so much
-        std::mem::drop(chunk_lock);
+        {
+            let mut chunk_lock = chunk.write().unwrap();
+            chunk_lock.remove_block(&(block_borrow.position));
+            // Drop chunk lock write
+        }
 
         self.render_chunks(chunks_to_rerender);
     }
@@ -144,9 +122,6 @@ impl World {
 
         for position in positions.iter() {
             if let Some(block) = self.get_blocks_absolute(position) {
-                if block.read().unwrap().block_type == BlockType::Water {
-                    continue;
-                }
                 nearby_blocks.push(block)
             };
         }
