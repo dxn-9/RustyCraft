@@ -107,7 +107,8 @@ impl World {
                     .read()
                     .unwrap();
 
-                if chunk.block_type_at(&position) == Some(BlockType::Water) {
+                if chunk.block_type_at(&position.relative_from_absolute()) == Some(BlockType::Water)
+                {
                     has_adjacent_water = true;
                 }
             }
