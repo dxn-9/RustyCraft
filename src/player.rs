@@ -85,6 +85,11 @@ impl Player {
         };
 
         for block in blocks.iter() {
+
+            if block.read().unwrap().block_type == BlockType::Water {
+                continue;
+            }
+
             if let Some(intersection_points) =
                 ray.intersects_box(&block.read().unwrap().collision_box)
             {

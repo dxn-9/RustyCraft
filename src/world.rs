@@ -75,22 +75,53 @@ impl World {
         self.render_chunks(chunks_to_rerender)
     }
     pub fn remove_block(&mut self, block: Arc<RwLock<Block>>) {
-        let block_borrow = block.read().unwrap();
-        let mut chunks_to_rerender = vec![block_borrow.get_chunk_coords()];
-        chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
-
-        let chunk_map = self.chunks.read().unwrap();
-        let chunk = chunk_map
-            .get(&chunks_to_rerender[0])
-            .expect("Cannot delete a block from unloaded chunk");
-
+        let mut has_adjacent_water = false;
+        let mut chunks_to_rerender = vec![];
         {
-            let mut chunk_lock = chunk.write().unwrap();
-            chunk_lock.remove_block(&(block_borrow.position));
-            // Drop chunk lock write
+            let block_borrow = block.read().unwrap();
+            chunks_to_rerender.push(block_borrow.get_chunk_coords());
+            chunks_to_rerender.append(&mut block_borrow.get_neighbour_chunks_coords());
+
+            let chunk_map = self.chunks.read().unwrap();
+            let chunk = chunk_map
+                .get(&chunks_to_rerender[0])
+                .expect("Cannot delete a block from unloaded chunk");
+
+            {
+                let mut chunk_lock = chunk.write().unwrap();
+                chunk_lock.remove_block(&(block_borrow.position));
+                // Drop chunk lock write
+            }
+
+            for offset in [
+                glam::vec3(1.0, 0.0, 0.0),
+                glam::vec3(-1.0, 0.0, 0.0),
+                glam::vec3(0.0, 0.0, 1.0),
+                glam::vec3(0.0, 0.0, -1.0),
+            ] {
+                let position = block_borrow.absolute_position + offset;
+                let chunk_pos = position.get_chunk_from_position_absolute();
+                let chunk = chunk_map
+                    .get(&chunk_pos)
+                    .expect("Should be loaded chunk")
+                    .read()
+                    .unwrap();
+
+                if chunk.block_type_at(&position) == Some(BlockType::Water) {
+                    has_adjacent_water = true;
+                }
+            }
         }
 
-        self.render_chunks(chunks_to_rerender);
+        // if it has a nearby block of water, replace the removed block with a water block.
+        if has_adjacent_water {
+            let mut blockbrw = block.write().unwrap();
+            blockbrw.block_type = BlockType::Water;
+            std::mem::drop(blockbrw);
+            self.place_block(block);
+        } else {
+            self.render_chunks(chunks_to_rerender);
+        }
     }
     pub fn get_blocks_absolute(&self, position: &Vec3) -> Option<Arc<RwLock<Block>>> {
         let (chunk_x, chunk_y) = position.get_chunk_from_position_absolute();
