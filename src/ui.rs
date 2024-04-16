@@ -233,13 +233,17 @@ impl UIPipeline {
             ],
         });
 
+        let main_pipeline = state.main_pipeline.as_ref().expect("Should be initialized");
         // Pipeline layouts
         let pipeline_layout =
             state
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[&bind_group_0_layout, &bind_group_1_layout],
+                    bind_group_layouts: &[
+                        &main_pipeline.bind_group_0_layout,
+                        &main_pipeline.bind_group_1_layout,
+                    ],
                     push_constant_ranges: &[],
                 });
 

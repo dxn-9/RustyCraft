@@ -34,7 +34,19 @@ impl From<&Camera> for Uniforms {
     }
 }
 
-impl Pipeline {
+pub struct MainPipeline {
+    pub projection_buffer: wgpu::Buffer,
+    pub view_buffer: wgpu::Buffer,
+    pub pipeline: wgpu::RenderPipeline,
+    pub bind_group_0: wgpu::BindGroup,
+    pub bind_group_0_layout: wgpu::BindGroupLayout,
+    pub bind_group_1: wgpu::BindGroup,
+    pub bind_group_1_layout: wgpu::BindGroupLayout,
+    pub depth_texture: Texture,
+    pub pipeline_type: PipelineType,
+}
+
+impl MainPipeline {
     pub fn new(state: &State) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
@@ -241,6 +253,8 @@ impl Pipeline {
                 });
 
         Self {
+            bind_group_0_layout,
+            bind_group_1_layout,
             view_buffer,
             projection_buffer,
             pipeline_type: PipelineType::WORLD,
@@ -252,7 +266,7 @@ impl Pipeline {
     }
 }
 
-impl PipelineTrait for Pipeline {
+impl PipelineTrait for MainPipeline {
     fn projection_buffer(&self) -> &Buffer {
         &self.projection_buffer
     }
@@ -299,14 +313,4 @@ pub enum PipelineType {
     WORLD,
     WATER,
     UI,
-}
-
-pub struct Pipeline {
-    pub projection_buffer: wgpu::Buffer,
-    pub view_buffer: wgpu::Buffer,
-    pub pipeline: wgpu::RenderPipeline,
-    pub bind_group_0: wgpu::BindGroup,
-    pub bind_group_1: wgpu::BindGroup,
-    pub depth_texture: Texture,
-    pub pipeline_type: PipelineType,
 }

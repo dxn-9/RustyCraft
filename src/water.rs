@@ -183,8 +183,8 @@ impl WaterPipeline {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
                     bind_group_layouts: &[
-                        &bind_group_0_layout,
-                        &bind_group_1_layout,
+                        &state.main_pipeline.as_ref().unwrap().bind_group_0_layout,
+                        &state.main_pipeline.as_ref().unwrap().bind_group_1_layout,
                         &state.world.chunk_data_layout,
                         &state
                             .player

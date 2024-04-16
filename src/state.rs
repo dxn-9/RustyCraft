@@ -7,7 +7,7 @@ use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
 use crate::perf;
 use crate::persistence::Saveable;
-use crate::pipeline::{Pipeline, PipelineTrait};
+use crate::pipeline::{MainPipeline, PipelineTrait};
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::water::WaterPipeline;
 use crate::{
@@ -105,6 +105,7 @@ impl State {
             surface_config,
             instance,
             window: window.clone(),
+            main_pipeline: None,
             device,
             world,
             queue,
@@ -113,11 +114,10 @@ impl State {
             camera_controller: CameraController::default(),
         };
 
-        let world_pipeline = Box::new(Pipeline::new(&state));
+        state.main_pipeline = Some(MainPipeline::new(&state));
         let water_pipeline = Box::new(WaterPipeline::new(&state));
         let ui_pipeline = Box::new(UIPipeline::new(&state));
 
-        state.pipelines.push(world_pipeline);
         state.pipelines.push(water_pipeline);
         state.pipelines.push(ui_pipeline);
 
@@ -243,7 +243,10 @@ impl State {
             self.surface_config.height = new_size.height.max(1);
             self.surface.configure(&self.device, &self.surface_config);
             let new_depth = Texture::create_depth_texture(&self);
-            self.pipelines[0].set_depth_texture(new_depth);
+            self.main_pipeline
+                .as_mut()
+                .unwrap()
+                .set_depth_texture(new_depth);
         }
     }
     pub fn update(&mut self, delta_time: f32, total_time: f32) {
@@ -268,13 +271,11 @@ impl State {
 
         let uniforms = Uniforms::from(&player.camera);
 
-        for pipeline in self.pipelines.iter() {
-            self.queue.write_buffer(
-                pipeline.view_buffer(),
-                0,
-                bytemuck::cast_slice(&[uniforms.view]),
-            )
-        }
+        self.queue.write_buffer(
+            self.main_pipeline.as_ref().unwrap().view_buffer(),
+            0,
+            bytemuck::cast_slice(&[uniforms.view]),
+        );
         // Drop write lock
         std::mem::drop(player);
 
@@ -328,7 +329,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.pipelines[0].depth_texture().view,
+                    view: &self.main_pipeline.as_ref().unwrap().depth_texture().view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -338,7 +339,7 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            let pipeline = &self.pipelines[0];
+            let pipeline = &self.main_pipeline.as_ref().unwrap();
 
             main_rpass.set_pipeline(pipeline.pipeline());
 
@@ -382,7 +383,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.pipelines[0].depth_texture().view,
+                    view: &self.main_pipeline.as_ref().unwrap().depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Discard,
@@ -392,12 +393,12 @@ impl State {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            let pipeline = &self.pipelines[1];
+            let pipeline = &self.pipelines[0];
 
             water_rpass.set_pipeline(pipeline.pipeline());
 
-            water_rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
-            water_rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+            water_rpass.set_bind_group(0, self.main_pipeline.as_ref().unwrap().bind_group_0(), &[]);
+            water_rpass.set_bind_group(1, self.main_pipeline.as_ref().unwrap().bind_group_1(), &[]);
             water_rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
 
             for chunk in chunks.iter() {
@@ -435,7 +436,7 @@ impl State {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.pipelines[0].depth_texture().view,
+                    view: &self.main_pipeline.as_ref().unwrap().depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -446,11 +447,19 @@ impl State {
                 occlusion_query_set: None,
             });
 
-            let pipeline = &self.pipelines[2];
+            let pipeline = &self.pipelines[1];
             ui_renderpass.set_pipeline(pipeline.pipeline());
 
-            ui_renderpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
-            ui_renderpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
+            ui_renderpass.set_bind_group(
+                0,
+                self.main_pipeline.as_ref().unwrap().bind_group_0(),
+                &[],
+            );
+            ui_renderpass.set_bind_group(
+                1,
+                self.main_pipeline.as_ref().unwrap().bind_group_1(),
+                &[],
+            );
 
             ui_renderpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
             ui_renderpass
@@ -475,6 +484,7 @@ pub struct State {
     pub queue: Arc<wgpu::Queue>,
     pub window: Arc<Mutex<Window>>,
     pub surface_config: wgpu::SurfaceConfiguration,
+    pub main_pipeline: Option<MainPipeline>,
     pub pipelines: Vec<Box<dyn PipelineTrait>>,
     pub player: Arc<RwLock<Player>>,
     pub world: World,
