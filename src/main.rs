@@ -38,12 +38,11 @@ pub mod macros;
 pub mod material;
 pub mod persistence;
 pub mod pipeline;
+pub mod pipelines;
 pub mod player;
 pub mod state;
 pub mod structures;
-pub mod ui;
 pub mod utils;
-mod water;
 pub mod world;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
@@ -69,8 +68,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     event_loop
         .run(move |event, target| {
-            // let _ = &(instance, &adapter, &shader, pipeline_layout);
-
             if let Event::WindowEvent {
                 window_id: _,
                 event,
@@ -113,10 +110,6 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                             cursor_in = true;
                         }
 
-                        let delta = glam::vec2(
-                            prev_mouse_pos.x - position.x as f32,
-                            prev_mouse_pos.y - position.y as f32,
-                        );
                         prev_mouse_pos.x = position.x as f32;
                         prev_mouse_pos.y = position.y as f32;
 

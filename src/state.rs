@@ -7,14 +7,13 @@ use crate::blocks::block_type::BlockType;
 use crate::collision::CollisionBox;
 use crate::perf;
 use crate::persistence::Saveable;
-use crate::pipeline::{MainPipeline, PipelineTrait};
+use crate::pipelines::pipeline_manager::PipelineManager;
+use crate::pipelines::Pipeline;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
-use crate::water::WaterPipeline;
 use crate::{
     material::Texture,
     pipeline::{self, Uniforms},
     player::{Camera, CameraController, Player},
-    ui::{UIPipeline, UI},
     world::World,
 };
 use winit::event::MouseButton;
@@ -25,6 +24,21 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
     window::Window,
 };
+
+pub struct State {
+    pub surface: wgpu::Surface,
+    pub instance: wgpu::Instance,
+    pub adapter: wgpu::Adapter,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
+    pub window: Arc<Mutex<Window>>,
+    pub surface_config: wgpu::SurfaceConfiguration,
+    pub pipeline_manager: PipelineManager,
+    pub player: Arc<RwLock<Player>>,
+    pub world: World,
+    pub config: Config,
+    pub camera_controller: CameraController,
+}
 
 impl State {
     pub async fn new(window: Arc<Mutex<Window>>) -> Self {
@@ -95,17 +109,20 @@ impl State {
 
         let mut world = World::init_world(device.clone(), queue.clone());
         world.init_chunks(Arc::clone(&player));
-        let ui = UI::new(device.clone(), queue.clone());
 
         let mut state = Self {
             config,
             player,
-            ui,
-            pipelines: vec![],
             surface_config,
             instance,
             window: window.clone(),
-            main_pipeline: None,
+            // just an empty object so we can initialize it later (without using options everywhere..)
+            pipeline_manager: PipelineManager {
+                main_pipeline: None,
+                highlight_selected_pipeline: None,
+                translucent_pipeline: None,
+                ui_pipeline: None,
+            },
             device,
             world,
             queue,
@@ -113,15 +130,9 @@ impl State {
             adapter,
             camera_controller: CameraController::default(),
         };
+        state.pipeline_manager = PipelineManager::init(&state);
 
-        state.main_pipeline = Some(MainPipeline::new(&state));
-        let water_pipeline = Box::new(WaterPipeline::new(&state));
-        let ui_pipeline = Box::new(UIPipeline::new(&state));
-
-        state.pipelines.push(water_pipeline);
-        state.pipelines.push(ui_pipeline);
-
-        state
+        return state;
     }
     pub fn save_state(&mut self) {
         self.player
@@ -243,9 +254,11 @@ impl State {
             self.surface_config.height = new_size.height.max(1);
             self.surface.configure(&self.device, &self.surface_config);
             let new_depth = Texture::create_depth_texture(&self);
-            self.main_pipeline
+            self.pipeline_manager
+                .main_pipeline
                 .as_mut()
                 .unwrap()
+                .borrow_mut()
                 .set_depth_texture(new_depth);
         }
     }
@@ -272,7 +285,13 @@ impl State {
         let uniforms = Uniforms::from(&player.camera);
 
         self.queue.write_buffer(
-            self.main_pipeline.as_ref().unwrap().view_buffer(),
+            &self
+                .pipeline_manager
+                .main_pipeline
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .view_buffer,
             0,
             bytemuck::cast_slice(&[uniforms.view]),
         );
@@ -284,11 +303,16 @@ impl State {
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
-        self.ui.update(
+        self.pipeline_manager.update(
             Arc::clone(&self.player),
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
+        // self.ui.update(
+        //     Arc::clone(&self.player),
+        //     Arc::clone(&self.queue),
+        //     Arc::clone(&self.device),
+        // );
     }
     pub fn draw(&mut self) {
         let frame = self
@@ -311,161 +335,31 @@ impl State {
             .collect::<Vec<_>>();
 
         let player = self.player.read().unwrap();
+        // Draw main pipeline
+        let _ = &self
+            .pipeline_manager
+            .main_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .render(&self, &mut encoder, &view, &player, &chunks);
 
-        {
-            let mut main_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.03,
-                            g: 0.64,
-                            b: 0.97,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.main_pipeline.as_ref().unwrap().depth_texture().view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            let pipeline = &self.main_pipeline.as_ref().unwrap();
+        // Draw translucent pipeline
+        let _ = &self
+            .pipeline_manager
+            .translucent_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .render(&self, &mut encoder, &view, &player, &chunks);
 
-            main_rpass.set_pipeline(pipeline.pipeline());
-
-            main_rpass.set_bind_group(0, pipeline.bind_group_0(), &[]);
-            main_rpass.set_bind_group(1, pipeline.bind_group_1(), &[]);
-
-            main_rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
-
-            for chunk in chunks.iter() {
-                if chunk.visible {
-                    main_rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                    main_rpass.set_vertex_buffer(
-                        0,
-                        chunk
-                            .chunk_vertex_buffer
-                            .as_ref()
-                            .expect("Vertex buffer not initiated")
-                            .slice(..),
-                    );
-                    main_rpass.set_index_buffer(
-                        chunk
-                            .chunk_index_buffer
-                            .as_ref()
-                            .expect("Index buffer not initiated")
-                            .slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    main_rpass.draw_indexed(0..chunk.indices, 0, 0..1);
-                };
-            }
-        }
-        {
-            let mut water_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.main_pipeline.as_ref().unwrap().depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Discard,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            let pipeline = &self.pipelines[0];
-
-            water_rpass.set_pipeline(pipeline.pipeline());
-
-            water_rpass.set_bind_group(0, self.main_pipeline.as_ref().unwrap().bind_group_0(), &[]);
-            water_rpass.set_bind_group(1, self.main_pipeline.as_ref().unwrap().bind_group_1(), &[]);
-            water_rpass.set_bind_group(3, &player.camera.position_bind_group, &[]);
-
-            for chunk in chunks.iter() {
-                if chunk.visible {
-                    water_rpass.set_bind_group(2, &chunk.chunk_bind_group, &[]);
-                    water_rpass.set_vertex_buffer(
-                        0,
-                        chunk
-                            .chunk_water_vertex_buffer
-                            .as_ref()
-                            .expect("Vertex buffer not initiated")
-                            .slice(..),
-                    );
-                    water_rpass.set_index_buffer(
-                        chunk
-                            .chunk_water_index_buffer
-                            .as_ref()
-                            .expect("Index buffer not initiated")
-                            .slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
-                    water_rpass.draw_indexed(0..chunk.water_indices, 0, 0..1);
-                };
-            }
-        }
-        {
-            let mut ui_renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.main_pipeline.as_ref().unwrap().depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            let pipeline = &self.pipelines[1];
-            ui_renderpass.set_pipeline(pipeline.pipeline());
-
-            ui_renderpass.set_bind_group(
-                0,
-                self.main_pipeline.as_ref().unwrap().bind_group_0(),
-                &[],
-            );
-            ui_renderpass.set_bind_group(
-                1,
-                self.main_pipeline.as_ref().unwrap().bind_group_1(),
-                &[],
-            );
-
-            ui_renderpass.set_vertex_buffer(0, self.ui.vertex_buffer.slice(..));
-            ui_renderpass
-                .set_index_buffer(self.ui.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            ui_renderpass.draw_indexed(0..self.ui.indices as u32, 0, 0..1);
-        }
+        let _ = &self
+            .pipeline_manager
+            .highlight_selected_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .render(&self, &mut encoder, &view, &player, &chunks);
 
         self.queue.submit(Some(encoder.finish()));
         frame.present();
@@ -474,21 +368,4 @@ impl State {
 
 pub struct Config {
     pub polygon_mode: wgpu::PolygonMode,
-}
-
-pub struct State {
-    pub surface: wgpu::Surface,
-    pub instance: wgpu::Instance,
-    pub adapter: wgpu::Adapter,
-    pub device: Arc<wgpu::Device>,
-    pub queue: Arc<wgpu::Queue>,
-    pub window: Arc<Mutex<Window>>,
-    pub surface_config: wgpu::SurfaceConfiguration,
-    pub main_pipeline: Option<MainPipeline>,
-    pub pipelines: Vec<Box<dyn PipelineTrait>>,
-    pub player: Arc<RwLock<Player>>,
-    pub world: World,
-    pub ui: UI,
-    pub config: Config,
-    pub camera_controller: CameraController,
 }

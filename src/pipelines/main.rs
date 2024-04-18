@@ -1,34 +1,102 @@
-use crate::blocks::block::Block;
-use crate::material::Texture;
-use crate::pipeline::{PipelineTrait, PipelineType, Uniforms};
-use crate::state::State;
-use crate::ui::UIPipeline;
-use wgpu::util::DeviceExt;
-use wgpu::{BindGroup, Buffer, RenderPipeline};
+use std::sync::{Arc, RwLock};
 
-pub struct Water;
-impl Water {
-    pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
-        Block::get_vertex_data_layout()
-    }
-}
-// TODO: This is kind of a bad abstraction and pipeline creation should definitely be easier to abstract, instead of creating same objects with same trait.
-pub struct WaterPipeline {
+use wgpu::Face;
+
+use crate::{
+    blocks::block::Block, material::Texture, pipeline::Uniforms, player::Player, state::State,
+};
+
+use super::{pipeline_manager::PipelineManager, Pipeline};
+use wgpu::util::DeviceExt;
+
+pub struct MainPipeline {
     pub projection_buffer: wgpu::Buffer,
     pub view_buffer: wgpu::Buffer,
     pub pipeline: wgpu::RenderPipeline,
-    pub depth_texture: crate::Texture,
     pub bind_group_0: wgpu::BindGroup,
-    pub bind_group_1: wgpu::BindGroup,
-    pub pipeline_type: crate::pipeline::PipelineType,
+    pub bind_group_0_layout: wgpu::BindGroupLayout,
+    pub depth_texture: Texture,
 }
-impl WaterPipeline {
-    // TODO: This is very ugly and should be abstracted for all pipelines. Also doubles the resource for uniforms etc.
-    pub fn new(state: &State) -> Self {
+
+impl Pipeline for MainPipeline {
+    fn render(
+        &self,
+        state: &State,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        player: &std::sync::RwLockReadGuard<'_, Player>,
+        chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
+    ) -> () {
+        let mut main_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.03,
+                        g: 0.64,
+                        b: 0.97,
+                        a: 1.0,
+                    }),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        main_rpass.set_pipeline(&self.pipeline);
+        main_rpass.set_bind_group(0, &self.bind_group_0, &[]);
+
+        main_rpass.set_bind_group(2, &player.camera.position_bind_group, &[]);
+
+        for chunk in chunks.iter() {
+            if chunk.visible {
+                main_rpass.set_bind_group(1, &chunk.chunk_bind_group, &[]);
+                main_rpass.set_vertex_buffer(
+                    0,
+                    chunk
+                        .chunk_vertex_buffer
+                        .as_ref()
+                        .expect("Vertex buffer not initiated")
+                        .slice(..),
+                );
+                main_rpass.set_index_buffer(
+                    chunk
+                        .chunk_index_buffer
+                        .as_ref()
+                        .expect("Index buffer not initiated")
+                        .slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                main_rpass.draw_indexed(0..chunk.indices, 0, 0..1);
+            }
+        }
+    }
+
+    fn update(
+        &mut self,
+        pipeline_manager: &PipelineManager,
+        player: Arc<RwLock<Player>>,
+        queue: Arc<wgpu::Queue>,
+        device: Arc<wgpu::Device>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        return Ok(());
+        // todo!()
+    }
+    fn init(state: &State, pipeline_manager: &PipelineManager) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 
-        let shader_source = include_str!("./shaders/water_shader.wgsl");
+        let shader_source = include_str!("../shaders/shader.wgsl");
 
         let shader = state
             .device
@@ -67,7 +135,14 @@ impl WaterPipeline {
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
 
-        // Bind groups
+        let texture_atlas = Texture::from_path(
+            "assets/tex_atlas.png",
+            "tex_atlas".to_string(),
+            &state.device,
+            &state.queue,
+        )
+        .unwrap();
+        // Bind 0: general purpouse group for 3d rendering
         let bind_group_0_layout =
             state
                 .device
@@ -104,6 +179,22 @@ impl WaterPipeline {
                             },
                             count: None,
                         },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
                     ],
                 });
         let bind_group_0 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -122,52 +213,12 @@ impl WaterPipeline {
                     binding: 2,
                     resource: world_chunk_per_row_buffer.as_entire_binding(),
                 },
-            ],
-        });
-
-        let texture_atlas = Texture::from_path(
-            "assets/tex_atlas.png",
-            "tex_atlas".to_string(),
-            &state.device,
-            &state.queue,
-        )
-        .unwrap();
-
-        let bind_group_1_layout =
-            state
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("bind_group_1"),
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Texture {
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                multisampled: false,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                });
-
-        let bind_group_1 = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("bind_group_1"),
-            layout: &bind_group_1_layout,
-            entries: &[
                 wgpu::BindGroupEntry {
-                    binding: 0,
+                    binding: 3,
                     resource: wgpu::BindingResource::TextureView(&texture_atlas.view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 1,
+                    binding: 4,
                     resource: wgpu::BindingResource::Sampler(&texture_atlas.sampler),
                 },
             ],
@@ -183,8 +234,7 @@ impl WaterPipeline {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
                     bind_group_layouts: &[
-                        &state.main_pipeline.as_ref().unwrap().bind_group_0_layout,
-                        &state.main_pipeline.as_ref().unwrap().bind_group_1_layout,
+                        &bind_group_0_layout,
                         &state.world.chunk_data_layout,
                         &state
                             .player
@@ -205,20 +255,17 @@ impl WaterPipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        buffers: &[Water::get_vertex_data_layout()],
+                        buffers: &[Block::get_vertex_data_layout()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fs_main",
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: swapchain_format,
-                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
+                        targets: &[Some(swapchain_format.into())],
                     }),
+
                     primitive: wgpu::PrimitiveState {
                         polygon_mode: state.config.polygon_mode,
-                        cull_mode: Some(wgpu::Face::Front),
+                        cull_mode: Some(Face::Front),
                         ..Default::default()
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
@@ -233,47 +280,18 @@ impl WaterPipeline {
                 });
 
         Self {
+            bind_group_0_layout,
             view_buffer,
             projection_buffer,
-            pipeline_type: PipelineType::WATER,
             depth_texture,
             bind_group_0,
-            bind_group_1,
             pipeline: render_pipeline,
         }
     }
 }
 
-impl PipelineTrait for WaterPipeline {
-    fn projection_buffer(&self) -> &Buffer {
-        &self.projection_buffer
-    }
-
-    fn pipeline(&self) -> &RenderPipeline {
-        &self.pipeline
-    }
-
-    fn view_buffer(&self) -> &Buffer {
-        &self.view_buffer
-    }
-
-    fn bind_group_0(&self) -> &BindGroup {
-        &self.bind_group_0
-    }
-
-    fn bind_group_1(&self) -> &BindGroup {
-        &self.bind_group_1
-    }
-
-    fn depth_texture(&self) -> &Texture {
-        todo!()
-    }
-
-    fn set_depth_texture(&mut self, texture: Texture) {
-        todo!()
-    }
-
-    fn get_type(&self) -> PipelineType {
-        self.pipeline_type
+impl MainPipeline {
+    pub fn set_depth_texture(&mut self, texture: Texture) {
+        self.depth_texture = texture;
     }
 }

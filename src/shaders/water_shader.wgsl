@@ -29,19 +29,23 @@ var<uniform> projection: mat4x4<f32>;
 var<uniform> view: mat4x4<f32>;
 @group(0) @binding(2)
 var <uniform> chunks_per_row: u32;
-@group(2) @binding(0)
+@group(0) @binding(3)
+var diffuse: texture_2d<f32>;
+@group(0) @binding(4)
+var t_sampler: sampler;
+@group(1) @binding(0)
 var <uniform> current_chunk: vec2<i32>;
-@group(3) @binding(0)
+@group(2) @binding(0)
 var <uniform> player_position: vec3<f32>;
-
 
 @vertex
 fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
 
-
     let chunk_offset = vec3<f32>(f32(current_chunk.x) * 16.0, 0.0, f32(current_chunk.y) * 16.0);
+
     let block_position = in.position + chunk_offset;
+
 
     let player_dist = distance(player_position, block_position);
 
@@ -56,10 +60,6 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
 }
 
 
-@group(1) @binding(0)
-var diffuse: texture_2d<f32>;
-@group(1) @binding(1)
-var t_sampler: sampler;
 
 struct FragmentInput {
         @location(0) tex_coords: vec2<f32>,
