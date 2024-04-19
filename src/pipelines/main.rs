@@ -89,8 +89,7 @@ impl Pipeline for MainPipeline {
         queue: Arc<wgpu::Queue>,
         device: Arc<wgpu::Device>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        return Ok(());
-        // todo!()
+        Ok(())
     }
     fn init(state: &State, pipeline_manager: &PipelineManager) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);

@@ -40,6 +40,7 @@ impl PipelineManager {
         pipeline.highlight_selected_pipeline = Some(RefCell::new(HighlightSelectedPipeline::init(
             state, &pipeline,
         )));
+        pipeline.ui_pipeline = Some(RefCell::new(UIPipeline::init(state, &pipeline)));
         return pipeline;
     }
     pub fn update(

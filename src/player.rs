@@ -46,6 +46,7 @@ pub struct Player {
     pub in_water: bool,
     pub jump_action_start: Option<Instant>,
     pub is_ghost: bool,
+    pub placing_block: BlockType,
     pub facing_block: Option<Arc<RwLock<Block>>>,
     pub facing_face: Option<FaceDirections>,
 }
@@ -85,7 +86,6 @@ impl Player {
         };
 
         for block in blocks.iter() {
-
             if block.read().unwrap().block_type == BlockType::Water {
                 continue;
             }

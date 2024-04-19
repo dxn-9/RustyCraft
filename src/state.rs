@@ -92,6 +92,7 @@ impl State {
         let current_chunk = camera.eye.get_chunk_from_position_absolute();
         let player = Arc::new(RwLock::new(Player {
             camera,
+            placing_block: BlockType::Dirt,
             in_water: false,
             current_chunk,
             is_jumping: false,
@@ -161,6 +162,17 @@ impl State {
                 physical_key: PhysicalKey::Code(KeyCode::KeyS),
                 ..
             } => self.camera_controller.movement_vector.z = -1.0 * is_pressed,
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyO),
+                state: winit::event::ElementState::Released,
+                ..
+            } => {
+                if player.placing_block == BlockType::Dirt {
+                    player.placing_block = BlockType::Grass
+                } else {
+                    player.placing_block = BlockType::Dirt
+                }
+            }
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyA),
                 ..
@@ -235,8 +247,12 @@ impl State {
                     let chunk = new_block_abs_position.get_chunk_from_position_absolute();
                     let position = new_block_abs_position.relative_from_absolute();
 
-                    let new_block =
-                        Arc::new(RwLock::new(Block::new(position, chunk, BlockType::Dirt)));
+                    println!("Placing block {:?}", player.placing_block);
+                    let new_block = Arc::new(RwLock::new(Block::new(
+                        position,
+                        chunk,
+                        player.placing_block,
+                    )));
 
                     self.world.place_block(new_block);
                 }
@@ -303,11 +319,13 @@ impl State {
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
-        self.pipeline_manager.update(
-            Arc::clone(&self.player),
-            Arc::clone(&self.queue),
-            Arc::clone(&self.device),
-        );
+        self.pipeline_manager
+            .update(
+                Arc::clone(&self.player),
+                Arc::clone(&self.queue),
+                Arc::clone(&self.device),
+            )
+            .expect("Update failed");
         // self.ui.update(
         //     Arc::clone(&self.player),
         //     Arc::clone(&self.queue),
@@ -356,6 +374,14 @@ impl State {
         let _ = &self
             .pipeline_manager
             .highlight_selected_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .render(&self, &mut encoder, &view, &player, &chunks);
+
+        let _ = &self
+            .pipeline_manager
+            .ui_pipeline
             .as_ref()
             .unwrap()
             .borrow()
