@@ -43,28 +43,28 @@ impl PipelineManager {
         pipeline.ui_pipeline = Some(RefCell::new(UIPipeline::init(state, &pipeline)));
         return pipeline;
     }
-    pub fn update(
-        &mut self,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        device: Arc<wgpu::Device>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        self.main_pipeline.as_ref().unwrap().borrow_mut().update(
-            &self,
-            player.clone(),
-            queue.clone(),
-            device.clone(),
-        )?;
+
+    pub fn update(&self, state: &State) -> Result<(), Box<dyn std::error::Error>> {
+        self.main_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow_mut()
+            .update(&self, state)?;
         self.translucent_pipeline
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, player.clone(), queue.clone(), device.clone())?;
+            .update(&self, state)?;
         self.highlight_selected_pipeline
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, player.clone(), queue.clone(), device.clone())?;
+            .update(&self, state)?;
+        self.ui_pipeline
+            .as_ref()
+            .unwrap()
+            .borrow_mut()
+            .update(&self, state)?;
 
         return Ok(());
     }

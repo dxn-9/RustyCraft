@@ -29,9 +29,11 @@ impl Pipeline for TranslucentPipeline {
     fn update(
         &mut self,
         _pipeline_manager: &PipelineManager,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        _device: Arc<wgpu::Device>,
+        state: &State,
+        // player: Arc<RwLock<Player>>,
+        // queue: Arc<wgpu::Queue>,
+        // _device: Arc<wgpu::Device>,
+        // _surface_config: &wgpu::SurfaceConfiguration,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }

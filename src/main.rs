@@ -143,6 +143,11 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 };
             } else if let Event::DeviceEvent { event, .. } = event {
                 match event {
+                    DeviceEvent::MouseWheel {
+                        delta: winit::event::MouseScrollDelta::LineDelta(_, deltay),
+                    } => {
+                        state.handle_wheel(deltay);
+                    }
                     DeviceEvent::MouseMotion { delta } => {
                         state.handle_mouse(&glam::vec2(delta.0 as f32, delta.1 as f32))
                     }

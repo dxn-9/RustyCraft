@@ -72,6 +72,8 @@ pub enum BlockType {
     Sand,
 }
 impl BlockType {
+    pub const MAX_ID: u32 = 6;
+
     pub fn get_config(&self) -> BlockTypeConfigs {
         BlockTypeConfigs::get(*self)
     }

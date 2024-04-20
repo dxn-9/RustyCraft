@@ -58,11 +58,9 @@ impl Pipeline for HighlightSelectedPipeline {
     fn update(
         &mut self,
         _pipeline_manager: &PipelineManager,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        _device: Arc<wgpu::Device>,
+        state: &State,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let player = player.read().unwrap();
+        let player = state.player.read().unwrap();
         if let Some(block_ptr) = player.facing_block.as_ref() {
             let mut face_data = FaceDirections::all()
                 .iter()
@@ -83,12 +81,12 @@ impl Pipeline for HighlightSelectedPipeline {
                 })
                 .collect::<Vec<_>>();
 
-            queue.write_buffer(
+            state.queue.write_buffer(
                 &self.selected_block_vertex_buffer,
                 0,
                 bytemuck::cast_slice(&block_positions),
             );
-            queue.write_buffer(
+            state.queue.write_buffer(
                 &self.selected_block_index_buffer,
                 0,
                 bytemuck::cast_slice(&face_data.1),

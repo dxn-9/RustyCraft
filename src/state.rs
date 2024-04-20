@@ -260,6 +260,19 @@ impl State {
             }
         }
     }
+    pub fn handle_wheel(&mut self, delta: f32) {
+        // Delta is {1.0, -1.0}
+        let palcing_block_id = self.player.read().unwrap().placing_block.to_id();
+        let mut next_block_id = (((palcing_block_id as i32 + delta as i32)
+            + (BlockType::MAX_ID + 1) as i32)
+            % (BlockType::MAX_ID + 1) as i32) as i32;
+
+        if next_block_id == BlockType::Water.to_id() as i32 {
+            next_block_id += 1 * delta as i32;
+        }
+
+        self.player.write().unwrap().placing_block = BlockType::from_id(next_block_id as u32);
+    }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
         self.player.write().unwrap().camera.move_target(delta)
     }
@@ -319,18 +332,7 @@ impl State {
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
-        self.pipeline_manager
-            .update(
-                Arc::clone(&self.player),
-                Arc::clone(&self.queue),
-                Arc::clone(&self.device),
-            )
-            .expect("Update failed");
-        // self.ui.update(
-        //     Arc::clone(&self.player),
-        //     Arc::clone(&self.queue),
-        //     Arc::clone(&self.device),
-        // );
+        self.pipeline_manager.update(&self).expect("Update failed");
     }
     pub fn draw(&mut self) {
         let frame = self

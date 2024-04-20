@@ -24,7 +24,7 @@ pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
 
-pub const CHUNKS_PER_ROW: u32 = 9;
+pub const CHUNKS_PER_ROW: u32 = 20;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
 
@@ -243,9 +243,9 @@ impl World {
                 })
             }
 
-            for _ in keys_to_remove.iter() {
-                receiver.recv().unwrap();
-            }
+            // for _ in keys_to_remove.iter() {
+            //     receiver.recv().unwrap();
+            // }
 
             let chunks_added = new_chunks_positions.len();
             let (sender, receiver) = mpsc::channel();
@@ -423,9 +423,9 @@ impl World {
         let chunk_data_layout =
             Arc::new(device.create_bind_group_layout(&Chunk::get_bind_group_layout()));
 
-        let max_threads = thread::available_parallelism().unwrap();
-        let threads = usize::max(usize::from(max_threads), 8);
-        let thread_pool = ThreadPool::new(threads);
+        let threads = thread::available_parallelism().unwrap();
+        // let threads = usize::max(usize::from(max_threads), 8);
+        let thread_pool = ThreadPool::new(usize::from(threads));
 
         World {
             chunk_data_layout,

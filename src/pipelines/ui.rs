@@ -1,4 +1,5 @@
-use crate::blocks::block::FaceDirections;
+use crate::blocks;
+use crate::blocks::block::{FaceDirections, TexturedBlock};
 use crate::material::Texture;
 use crate::pipeline::Uniforms;
 use crate::player::Player;
@@ -14,9 +15,6 @@ use super::Pipeline;
 
 pub struct UIPipeline {
     pub pipeline: wgpu::RenderPipeline,
-    pub ui_bindgroup: wgpu::BindGroup,
-    pub selected_blockid_buffer: wgpu::Buffer,
-    pub resolution_buffer: wgpu::Buffer,
     pub screenspace_buffer: wgpu::Buffer,
 }
 
@@ -58,7 +56,6 @@ impl Pipeline for UIPipeline {
         });
         rpass.set_pipeline(&self.pipeline);
         rpass.set_bind_group(0, &main_pipeline_ref.bind_group_0, &[]);
-        rpass.set_bind_group(1, &self.ui_bindgroup, &[]);
         rpass.set_vertex_buffer(0, self.screenspace_buffer.slice(..));
         rpass.draw(0..6, 0..1);
     }
@@ -74,96 +71,34 @@ impl Pipeline for UIPipeline {
                 source: wgpu::ShaderSource::Wgsl(shader_source.into()),
             });
 
-        let selected_blockid_buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            mapped_at_creation: false,
-            size: std::mem::size_of::<u32>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+        let aspect_ratio = state.surface_config.height as f32 / state.surface_config.width as f32;
 
-        let screen_quad: Vec<f32> = vec![
-            -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0,
-        ];
+        let player = state.player.read().unwrap();
+        let block_type = player.placing_block;
+        let tex_coords = block_type.get_texcoords(FaceDirections::Front);
+        let screen_quad = Self::create_screen_quad(aspect_ratio, tex_coords);
+
         let screenspace_buffer =
             state
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     contents: bytemuck::cast_slice(&screen_quad),
                     label: Some("Screenspace rectangle"),
-                    usage: BufferUsages::VERTEX,
+                    usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 });
 
-        let resolution = [
-            state.surface_config.width as f32,
-            state.surface_config.height as f32,
-        ];
-        let resolution_buffer =
-            state
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    contents: bytemuck::cast_slice(&[resolution]),
-                    label: None,
-                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                });
-
-        let ui_bindgroup_layout =
-            state
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &[
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::FRAGMENT,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                    ],
-                });
-
-        let ui_bindgroup = state.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &ui_bindgroup_layout,
-            label: None,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: resolution_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: selected_blockid_buffer.as_entire_binding(),
-                },
-            ],
-        });
         // Pipeline layouts
         let pipeline_layout =
             state
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[
-                        &pipeline_manager
-                            .main_pipeline
-                            .as_ref()
-                            .unwrap()
-                            .borrow()
-                            .bind_group_0_layout,
-                        &ui_bindgroup_layout,
-                    ],
+                    bind_group_layouts: &[&pipeline_manager
+                        .main_pipeline
+                        .as_ref()
+                        .unwrap()
+                        .borrow()
+                        .bind_group_0_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -207,19 +142,34 @@ impl Pipeline for UIPipeline {
         Self {
             screenspace_buffer,
             pipeline: render_pipeline,
-            resolution_buffer,
-            selected_blockid_buffer,
-            ui_bindgroup,
         }
     }
     fn update(
         &mut self,
         pipeline_manager: &PipelineManager,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        device: Arc<wgpu::Device>,
+        state: &State, // player: Arc<RwLock<Player>>,
+                       // queue: Arc<wgpu::Queue>,
+                       // device: Arc<wgpu::Device>,
+                       // surface_config: &wgpu::SurfaceConfiguration,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        todo!();
+        let aspect_ratio = state.surface_config.height as f32 / state.surface_config.width as f32;
+        let player = state.player.read().unwrap();
+        let block_type = player.placing_block;
+        let tex_coords = block_type.get_texcoords(FaceDirections::Front);
+        let screen_quad = Self::create_screen_quad(aspect_ratio, tex_coords);
+        state.queue.write_buffer(
+            &self.screenspace_buffer,
+            0,
+            bytemuck::cast_slice(&screen_quad),
+        );
+        Ok(())
+
+        // let aspect_ratio = state.surface_config.height as f32 / state.surface_config.width as f32;
+
+        // let player = state.player.read().unwrap();
+        // let block_type = player.placing_block;
+        // let tex_coords = block_type.get_texcoords(FaceDirections::Front);
+        // let screen_quad = Self::create_screen_quad(aspect_ratio, tex_coords);
         //     let player = state.player.read().unwrap();
         //     if let Some(block_ptr) = player.facing_block.as_ref() {
         //         let block = block_ptr.read().unwrap();
@@ -261,15 +211,53 @@ impl Pipeline for UIPipeline {
     }
 }
 impl UIPipeline {
+    // Creates the rectangle coords for displaying the block that would be placed if something is placed.
+    fn create_screen_quad(aspect_ratio: f32, tex_coords: [[f32; 2]; 4]) -> Vec<f32> {
+        vec![
+            -0.9 * aspect_ratio,
+            -0.9,
+            tex_coords[0][0],
+            tex_coords[0][1],
+            -0.9 * aspect_ratio,
+            -0.6,
+            tex_coords[1][0],
+            tex_coords[1][1],
+            -0.6 * aspect_ratio,
+            -0.6,
+            tex_coords[2][0],
+            tex_coords[2][1],
+            -0.9 * aspect_ratio,
+            -0.9,
+            tex_coords[0][0],
+            tex_coords[0][1],
+            -0.6 * aspect_ratio,
+            -0.6,
+            tex_coords[2][0],
+            tex_coords[2][1],
+            -0.6 * aspect_ratio,
+            -0.9,
+            tex_coords[3][0],
+            tex_coords[3][1],
+        ]
+    }
     fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x2,
-                offset: 0,
-                shader_location: 0,
-            }],
+            attributes: &[
+                // Position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                // Uv
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: std::mem::size_of::<[f32; 2]>() as u64,
+                    shader_location: 1,
+                },
+            ],
         }
     }
 }

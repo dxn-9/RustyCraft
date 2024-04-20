@@ -11,9 +11,11 @@ pub trait Pipeline {
     fn update(
         &mut self,
         pipeline_manager: &PipelineManager,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        device: Arc<wgpu::Device>,
+        state: &State,
+        // player: Arc<RwLock<Player>>,
+        // queue: Arc<wgpu::Queue>,
+        // device: Arc<wgpu::Device>,
+        // surface_config: &wgpu::SurfaceConfiguration,
     ) -> Result<(), Box<dyn Error>>;
     fn render(
         &self,

@@ -85,9 +85,10 @@ impl Pipeline for MainPipeline {
     fn update(
         &mut self,
         pipeline_manager: &PipelineManager,
-        player: Arc<RwLock<Player>>,
-        queue: Arc<wgpu::Queue>,
-        device: Arc<wgpu::Device>,
+        // player: Arc<RwLock<Player>>,
+        state: &State, // queue: Arc<wgpu::Queue>,
+                       // device: Arc<wgpu::Device>,
+                       // surface_configuration: &wgpu::SurfaceConfiguration,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
