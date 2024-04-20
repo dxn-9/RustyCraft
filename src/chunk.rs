@@ -1,8 +1,7 @@
-use crate::blocks::block_type::BlockType::Water;
 use crate::persistence::{Loadable, Saveable};
 use crate::player::Player;
 use crate::utils::math_utils::Plane;
-use crate::world::{ChunkMap, WorldChunk, RNG_SEED, WATER_HEIGHT_LEVEL};
+use crate::world::{ChunkMap, RNG_SEED, WATER_HEIGHT_LEVEL};
 use crate::{
     blocks::{
         block::{Block, BlockVertexData, FaceDirections},
@@ -11,15 +10,12 @@ use crate::{
     structures::Structure,
     world::{NoiseData, CHUNK_SIZE, MAX_TREES_PER_CHUNK, NOISE_CHUNK_PER_ROW, NOISE_SIZE},
 };
+
 use glam::Vec3;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::any::Any;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::error::Error;
-use std::io::{self, BufReader, Read};
-use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use wgpu::util::DeviceExt;
 

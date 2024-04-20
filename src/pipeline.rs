@@ -1,17 +1,5 @@
-use std::fs::File;
-use std::io::Read;
-use std::{cell::RefCell, rc::Rc};
-
+use crate::player::Camera;
 use bytemuck::{Pod, Zeroable};
-use obj::Vertex;
-use wgpu::{include_wgsl, util::DeviceExt, BindGroup, Buffer, Face, RenderPipeline};
-
-use crate::{
-    blocks::block::Block,
-    material::{Material, Texture},
-    player::Camera,
-    state::State,
-};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Pod, Zeroable)]

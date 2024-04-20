@@ -1,6 +1,5 @@
-use image::{error::DecodingError, GenericImageView, ImageError};
-
 use crate::{state::State, utils::noise::perlin_noise};
+use image::GenericImageView;
 
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;

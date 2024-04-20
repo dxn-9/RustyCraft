@@ -1,21 +1,5 @@
+use std::sync::Arc;
 use std::sync::{Mutex, RwLock};
-use std::time::Instant;
-use std::{f32::consts, sync::Arc};
-
-use crate::blocks::block::Block;
-use crate::blocks::block_type::BlockType;
-use crate::collision::CollisionBox;
-use crate::perf;
-use crate::persistence::Saveable;
-use crate::pipelines::pipeline_manager::PipelineManager;
-use crate::pipelines::Pipeline;
-use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
-use crate::{
-    material::Texture,
-    pipeline::{self, Uniforms},
-    player::{Camera, CameraController, Player},
-    world::World,
-};
 use winit::event::MouseButton;
 use winit::window::CursorGrabMode;
 use winit::{
@@ -23,6 +7,19 @@ use winit::{
     event::KeyEvent,
     keyboard::{KeyCode, PhysicalKey},
     window::Window,
+};
+
+use crate::blocks::block::Block;
+use crate::blocks::block_type::BlockType;
+use crate::persistence::Saveable;
+use crate::pipelines::pipeline_manager::PipelineManager;
+use crate::pipelines::Pipeline;
+use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
+use crate::{
+    material::Texture,
+    pipeline::Uniforms,
+    player::{Camera, CameraController, Player},
+    world::World,
 };
 
 pub struct State {

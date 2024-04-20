@@ -1,26 +1,12 @@
-use std::sync::{Arc, Mutex};
-use std::{
-    fs::File,
-    io::BufReader,
-    mem,
-    ops::ControlFlow,
-    process::exit,
-    time::{Duration, Instant},
-};
-
-use bytemuck::{Pod, Zeroable};
-use glam::vec2;
-use material::Texture;
-use player::CameraController;
 use state::State;
-use tobj::{load_obj, load_obj_buf, LoadOptions};
-use winit::keyboard::KeyCode;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use winit::window::CursorGrabMode;
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::PhysicalSize,
     event::*,
     event_loop::EventLoop,
-    keyboard::{Key, NamedKey, PhysicalKey},
+    keyboard::{Key, NamedKey},
     window::Window,
 };
 

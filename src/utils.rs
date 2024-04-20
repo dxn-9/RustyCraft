@@ -1,13 +1,6 @@
 use crate::world::CHUNK_SIZE;
 use glam::{vec3, Vec3};
-use num_traits::FromPrimitive;
 
-fn fade(t: f32) -> f32 {
-    ((6.0 * t - 15.) * t + 10.) * t * t * t
-}
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + ((b - a) * t)
-}
 pub(crate) mod math_utils {
     #[derive(Debug)]
     pub struct Plane {
@@ -25,7 +18,6 @@ pub(crate) mod noise {
 
     use crate::world::RNG_SEED;
 
-    use super::*;
     use glam::Vec2;
 
     const WRAP: u32 = 256;

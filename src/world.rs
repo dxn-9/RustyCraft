@@ -1,20 +1,15 @@
-use glam::Vec3;
-use std::borrow::Borrow;
-use std::collections::HashMap;
-use std::fs::File;
-use std::ops::{Deref, DerefMut};
-use std::sync::{Mutex, RwLock};
-use std::{
-    sync::{mpsc, Arc},
-    thread,
-};
-use wgpu::util::DeviceExt;
-use wgpu::BindGroupEntry;
-
 use crate::blocks::block_type::BlockType;
 use crate::persistence::Saveable;
 use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
 use crate::{blocks::block::Block, chunk::Chunk, player::Player, utils::threadpool::ThreadPool};
+use glam::Vec3;
+use std::borrow::Borrow;
+use std::collections::HashMap;
+use std::sync::RwLock;
+use std::{
+    sync::{mpsc, Arc},
+    thread,
+};
 
 pub const RNG_SEED: u64 = 0;
 pub const CHUNK_SIZE: u32 = 16;
@@ -23,14 +18,11 @@ pub const NOISE_SIZE: u32 = 1024;
 pub const FREQUENCY: f32 = 1. / 128.;
 pub const NOISE_CHUNK_PER_ROW: u32 = NOISE_SIZE / CHUNK_SIZE;
 pub const MAX_TREES_PER_CHUNK: u32 = 3;
-
 pub const CHUNKS_PER_ROW: u32 = 20;
 pub const CHUNKS_REGION: u32 = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
 pub const WATER_HEIGHT_LEVEL: u8 = 5;
-
 // Lower bound of chunk
 pub const LB: i32 = -((CHUNKS_PER_ROW / 2) as i32);
-
 // Upper bound of chunk
 pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
     (CHUNKS_PER_ROW / 2 - 1) as i32
@@ -39,7 +31,6 @@ pub const UB: i32 = if CHUNKS_PER_ROW % 2 == 0 {
 };
 
 pub type NoiseData = Vec<f32>;
-
 pub type WorldChunk = Arc<RwLock<Chunk>>;
 pub type ChunkMap = Arc<RwLock<HashMap<(i32, i32), WorldChunk>>>;
 
@@ -172,10 +163,8 @@ impl World {
                 current_chunk.0 - player_write.current_chunk.0,
                 current_chunk.1 - player_write.current_chunk.1,
             );
-
             let o = if CHUNKS_PER_ROW % 2 == 0 { 1 } else { 0 };
             let p = CHUNKS_PER_ROW as i32 / 2;
-
             let new_chunks_offset = if delta.1 > 0 || delta.0 > 0 {
                 p - o
             } else {
@@ -188,9 +177,9 @@ impl World {
             };
 
             let mut new_chunks_positions: Vec<(i32, i32)> = vec![];
-
             let chunk_y_remove = player_write.current_chunk.1 + old_chunks_offset;
             let chunk_x_remove = player_write.current_chunk.0 + old_chunks_offset;
+
             if delta.0 != 0 {
                 for i in LB + current_chunk.1..=UB + current_chunk.1 {
                     new_chunks_positions.push((current_chunk.0 + new_chunks_offset, i));
@@ -243,9 +232,9 @@ impl World {
                 })
             }
 
-            // for _ in keys_to_remove.iter() {
-            //     receiver.recv().unwrap();
-            // }
+            for _ in keys_to_remove.iter() {
+                receiver.recv().unwrap();
+            }
 
             let chunks_added = new_chunks_positions.len();
             let (sender, receiver) = mpsc::channel();

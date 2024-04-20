@@ -1,11 +1,8 @@
 pub mod ao {
     use crate::blocks::block_type::BlockType;
     use crate::chunk::BlockVec;
-    use crate::perf;
     use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
     use crate::world::CHUNK_SIZE;
-    use glam::vec3;
-    use std::time::Instant;
 
     // https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
     pub(crate) fn calc_vertex_ao(side1: bool, side2: bool, up: bool) -> u8 {
