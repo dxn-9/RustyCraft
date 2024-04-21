@@ -939,28 +939,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minecraft"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "env_logger",
- "fs_extra",
- "glam",
- "glob",
- "image",
- "lazy_static",
- "log",
- "num-traits",
- "obj-rs",
- "pollster",
- "rand",
- "tobj",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "miniz_oxide"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1436,6 +1414,28 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rustycraft"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "env_logger",
+ "fs_extra",
+ "glam",
+ "glob",
+ "image",
+ "lazy_static",
+ "log",
+ "num-traits",
+ "obj-rs",
+ "pollster",
+ "rand",
+ "tobj",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

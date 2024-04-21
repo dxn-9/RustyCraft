@@ -1,6 +1,6 @@
 # RustyCraft
 
-> **This project was used as learning project in order to learn rust and wgpu.**
+> **This project is learning project for rust and wgpu. Don't take it too serious**
 
 ## Introduction
 
