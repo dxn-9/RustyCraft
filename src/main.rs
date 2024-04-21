@@ -5,6 +5,7 @@
 use state::State;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use winit::dpi::LogicalSize;
 use winit::window::CursorGrabMode;
 use winit::{
     dpi::PhysicalSize,
@@ -45,7 +46,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let mut size = window.inner_size();
     size.width = size.width.max(1);
-    size.width = size.height.max(1);
+    size.height = size.height.max(1);
 
     window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
     window.set_cursor_visible(false);
@@ -152,8 +153,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     let builder = winit::window::WindowBuilder::new();
+
     let window = builder
-        .with_inner_size(PhysicalSize::new(
+        .with_inner_size(LogicalSize::new(
             DEFAULT_WINDOW_WIDTH,
             DEFAULT_WINDOW_HEIGHT,
         ))

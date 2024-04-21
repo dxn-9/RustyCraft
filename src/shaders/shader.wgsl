@@ -51,8 +51,8 @@ fn vs_main(in: VertexInput, instance_data: InstanceInput) -> VertexOutput {
 
     let player_dist = distance(player_position, block_position);
 
-    let r = f32(16 * (i32(chunks_per_row) / 2));
-    out.fog = clamp((player_dist - r) / 8.0, 0.0, 1.0);
+    let r = (f32(chunks_per_row) - 1.0) * 8.0;
+    out.fog = 1.0 - clamp((r - player_dist) / 8.0, 0.0, 1.0);
 
     // out.fog = min(pow(player_dist / 80.0, 6.0), 1.0);
     out.clip_position = projection * view * (vec4<f32>(block_position, 1.0));
