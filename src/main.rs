@@ -156,6 +156,7 @@ fn main() {
             DEFAULT_WINDOW_WIDTH,
             DEFAULT_WINDOW_HEIGHT,
         ))
+        .with_title("RustyCraft")
         .build(&event_loop)
         .unwrap();
 
