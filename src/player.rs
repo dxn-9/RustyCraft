@@ -4,18 +4,14 @@ use std::f32::consts;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use glam::{vec2, vec3, Mat2, Vec2, Vec3};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
-use wgpu::BindGroupLayout;
+use glam::{vec3, Vec2, Vec3};
+use wgpu::util::DeviceExt;
 
 use crate::blocks::block::{Block, FaceDirections};
 use crate::blocks::block_type::BlockType;
-use crate::collision::{CollisionPoint, RayResult};
+use crate::collision::RayResult;
 use crate::persistence::{Loadable, Saveable};
-use crate::{
-    collision::CollisionBox,
-    world::{World, CHUNK_SIZE},
-};
+use crate::{collision::CollisionBox, world::CHUNK_SIZE};
 
 const SENSITIVITY: f32 = 0.001;
 const CAMERA_SPEED: f32 = 10.0;
@@ -378,7 +374,7 @@ impl Saveable<glam::Vec3> for Camera {
 }
 
 impl Loadable<(glam::Vec3, f32, f32)> for Camera {
-    fn load(_: Box<dyn Any>) -> Result<((Vec3, f32, f32)), Box<dyn Error>> {
+    fn load(_: Box<dyn Any>) -> Result<(Vec3, f32, f32), Box<dyn Error>> {
         let data = String::from_utf8(std::fs::read("data/player")?)?;
         let mut data = data.split(",");
         let x = data.next().unwrap().parse::<f32>().unwrap();

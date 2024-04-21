@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::sync::{Mutex, RwLock};
 use winit::event::MouseButton;
-use winit::window::CursorGrabMode;
 use winit::{
     dpi::PhysicalSize,
     event::KeyEvent,
@@ -141,7 +140,7 @@ impl State {
         self.device.destroy();
         std::mem::drop(self.queue.to_owned());
     }
-    pub fn handle_keypress(&mut self, event: KeyEvent, delta_time: f32) {
+    pub fn handle_keypress(&mut self, event: KeyEvent) {
         let is_pressed: f32 = if event.state.is_pressed() { 1. } else { 0. };
         let mut player = self.player.write().unwrap();
 
@@ -266,7 +265,7 @@ impl State {
                 .set_depth_texture(new_depth);
         }
     }
-    pub fn update(&mut self, delta_time: f32, total_time: f32) {
+    pub fn update(&mut self, delta_time: f32) {
         let nearby_blocks = self.world.get_blocks_nearby(Arc::clone(&self.player));
 
         let mut player = self.player.write().unwrap();

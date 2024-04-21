@@ -1,11 +1,8 @@
-use std::{
-    cell::RefCell,
-    sync::{Arc, RwLock},
-};
+use std::cell::RefCell;
 
 use wgpu::{CommandEncoder, TextureView};
 
-use crate::{player::Player, state::State};
+use crate::state::State;
 
 use super::{
     highlight_selected::HighlightSelectedPipeline, main::MainPipeline,
@@ -26,6 +23,7 @@ impl PipelineManager {
         view: &TextureView,
         main_pipeline: &MainPipeline,
     ) {
+        todo!();
     }
     pub fn init(state: &State) -> PipelineManager {
         let mut pipeline = PipelineManager {

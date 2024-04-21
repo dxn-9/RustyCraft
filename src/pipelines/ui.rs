@@ -1,14 +1,9 @@
-use crate::blocks;
 use crate::blocks::block::{FaceDirections, TexturedBlock};
 use crate::material::Texture;
-use crate::pipeline::Uniforms;
 use crate::player::Player;
 use crate::state::State;
-use std::borrow::Borrow;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
 use wgpu::util::DeviceExt;
-use wgpu::{BindGroup, Buffer, BufferUsages, RenderPipeline};
+use wgpu::BufferUsages;
 
 use super::pipeline_manager::PipelineManager;
 use super::Pipeline;
@@ -24,8 +19,8 @@ impl Pipeline for UIPipeline {
         state: &State,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        player: &std::sync::RwLockReadGuard<'_, Player>,
-        chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
+        _player: &std::sync::RwLockReadGuard<'_, Player>,
+        _chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
     ) -> () {
         let main_pipeline_ref = state
             .pipeline_manager
@@ -145,11 +140,8 @@ impl Pipeline for UIPipeline {
     }
     fn update(
         &mut self,
-        pipeline_manager: &PipelineManager,
-        state: &State, // player: Arc<RwLock<Player>>,
-                       // queue: Arc<wgpu::Queue>,
-                       // device: Arc<wgpu::Device>,
-                       // surface_config: &wgpu::SurfaceConfiguration,
+        _pipeline_manager: &PipelineManager,
+        state: &State,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let aspect_ratio = state.surface_config.height as f32 / state.surface_config.width as f32;
         let player = state.player.read().unwrap();
@@ -162,51 +154,6 @@ impl Pipeline for UIPipeline {
             bytemuck::cast_slice(&screen_quad),
         );
         Ok(())
-
-        // let aspect_ratio = state.surface_config.height as f32 / state.surface_config.width as f32;
-
-        // let player = state.player.read().unwrap();
-        // let block_type = player.placing_block;
-        // let tex_coords = block_type.get_texcoords(FaceDirections::Front);
-        // let screen_quad = Self::create_screen_quad(aspect_ratio, tex_coords);
-        //     let player = state.player.read().unwrap();
-        //     if let Some(block_ptr) = player.facing_block.as_ref() {
-        //         let block = block_ptr.read().unwrap();
-
-        //         let face_data = FaceDirections::all()
-        //             .iter()
-        //             .find(|f| **f == player.facing_face.unwrap())
-        //             .unwrap()
-        //             .create_face_data(block_ptr.clone(), &vec![]);
-
-        //         let blocks_position = face_data
-        //             .0
-        //             .iter()
-        //             .map(|v| {
-        //                 [
-        //                     // TODO: This is kinda ugly
-        //                     v.position[0] + (block.absolute_position.x - block.position.x),
-        //                     v.position[1] + (block.absolute_position.y - block.position.y),
-        //                     v.position[2] + (block.absolute_position.z - block.position.z),
-        //                 ]
-        //             })
-        //             .collect::<Vec<_>>();
-
-        //         self.indices = face_data.1.len();
-        //         state.queue.write_buffer(
-        //             &self.vertex_buffer,
-        //             0,
-        //             bytemuck::cast_slice(&blocks_position),
-        //         );
-        //         state
-        //             .queue
-        //             .write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&face_data.1));
-        //     } else {
-        //         self.indices = 0;
-        //         state.queue.write_buffer(&self.vertex_buffer, 0, &[]);
-        //         state.queue.write_buffer(&self.index_buffer, 0, &[]);
-        //     }
-        // }
     }
 }
 impl UIPipeline {

@@ -8,7 +8,6 @@ use std::time::Instant;
 use winit::dpi::LogicalSize;
 use winit::window::CursorGrabMode;
 use winit::{
-    dpi::PhysicalSize,
     event::*,
     event_loop::EventLoop,
     keyboard::{Key, NamedKey},
@@ -83,9 +82,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                         target.exit();
                     }
 
-                    WindowEvent::KeyboardInput { event, .. } => {
-                        state.handle_keypress(event, delta_time.as_secs_f32())
-                    }
+                    WindowEvent::KeyboardInput { event, .. } => state.handle_keypress(event),
                     WindowEvent::MouseInput {
                         state: ElementState::Pressed,
                         button,
@@ -122,10 +119,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
                         if first_render {
                             // Don't do calcs based on delta time on first render
-                            state.update(0.0, 0.0);
+                            state.update(0.0);
                             first_render = false;
                         } else {
-                            state.update(delta_time.as_secs_f32(), total_time.as_secs_f32());
+                            state.update(delta_time.as_secs_f32());
                         }
                         state.draw();
                         window.lock().unwrap().request_redraw();

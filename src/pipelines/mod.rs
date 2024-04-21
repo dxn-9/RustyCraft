@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    sync::{Arc, RwLock, RwLockReadGuard},
-};
+use std::{error::Error, sync::RwLockReadGuard};
 
 use self::pipeline_manager::PipelineManager;
 use crate::{chunk::Chunk, player::Player, state::State};

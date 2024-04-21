@@ -203,7 +203,6 @@ impl ChunkFromPosition for glam::Vec3 {
 
 mod tests {
     use crate::utils::{ChunkFromPosition, RelativeFromAbsolute};
-    use glam::vec3;
     #[test]
     fn should_get_the_correct_chunk_from_position_absolute() {
         let absolute_position = glam::vec3(17.0, 0.0, 20.0);

@@ -1,5 +1,3 @@
-use std::sync::{Arc, RwLock};
-
 use wgpu::Face;
 
 use crate::{
@@ -21,7 +19,7 @@ pub struct MainPipeline {
 impl Pipeline for MainPipeline {
     fn render(
         &self,
-        state: &State,
+        _state: &State,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         player: &std::sync::RwLockReadGuard<'_, Player>,
@@ -84,15 +82,12 @@ impl Pipeline for MainPipeline {
 
     fn update(
         &mut self,
-        pipeline_manager: &PipelineManager,
-        // player: Arc<RwLock<Player>>,
-        state: &State, // queue: Arc<wgpu::Queue>,
-                       // device: Arc<wgpu::Device>,
-                       // surface_configuration: &wgpu::SurfaceConfiguration,
+        _pipeline_manager: &PipelineManager,
+        _state: &State,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
-    fn init(state: &State, pipeline_manager: &PipelineManager) -> Self {
+    fn init(state: &State, _pipeline_manager: &PipelineManager) -> Self {
         let swapchain_capabilities = state.surface.get_capabilities(&state.adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
 

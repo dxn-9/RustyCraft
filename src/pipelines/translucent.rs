@@ -1,20 +1,12 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::RwLockReadGuard;
 
-use crate::blocks::block::{Block, FaceDirections};
-use crate::chunk::Chunk;
-use crate::material::Texture;
-use crate::pipeline::Uniforms;
-use crate::player::Player;
-use crate::state::State;
-use wgpu::util::DeviceExt;
-use wgpu::{
-    BindGroup, BindGroupEntry, BindGroupLayoutEntry, Buffer, BufferUsages, CommandEncoder,
-    RenderPipeline,
-};
-
-use super::main::MainPipeline;
 use super::pipeline_manager::PipelineManager;
 use super::Pipeline;
+use crate::blocks::block::Block;
+use crate::chunk::Chunk;
+use crate::material::Texture;
+use crate::player::Player;
+use crate::state::State;
 
 pub struct Water;
 impl Water {
@@ -29,11 +21,7 @@ impl Pipeline for TranslucentPipeline {
     fn update(
         &mut self,
         _pipeline_manager: &PipelineManager,
-        state: &State,
-        // player: Arc<RwLock<Player>>,
-        // queue: Arc<wgpu::Queue>,
-        // _device: Arc<wgpu::Device>,
-        // _surface_config: &wgpu::SurfaceConfiguration,
+        _state: &State,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }

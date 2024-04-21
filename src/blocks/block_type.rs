@@ -1,9 +1,6 @@
-use rand::{random, rngs::StdRng, Rng, SeedableRng};
-use std::any::Any;
-
-use crate::world::{RNG_SEED, WATER_HEIGHT_LEVEL};
-
 use super::block::{FaceDirections, TexturedBlock};
+use crate::world::{RNG_SEED, WATER_HEIGHT_LEVEL};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 #[derive(Clone, Copy, Debug)]
 // This can be 1, 2 [because sometimes we want to reuse the same texture for the bottom as the top]

@@ -1,8 +1,6 @@
-use std::sync::{Arc, RwLock};
-
 use crate::{blocks::block::FaceDirections, material::Texture, player::Player, state::State};
 
-use super::{pipeline_manager::PipelineManager, translucent::Water, Pipeline};
+use super::{pipeline_manager::PipelineManager, Pipeline};
 
 pub struct HighlightSelectedPipeline {
     pub pipeline: wgpu::RenderPipeline,
@@ -16,8 +14,8 @@ impl Pipeline for HighlightSelectedPipeline {
         state: &State,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        player: &std::sync::RwLockReadGuard<'_, Player>,
-        chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
+        _player: &std::sync::RwLockReadGuard<'_, Player>,
+        _chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
     ) -> () {
         let main_pipeline_ref = state
             .pipeline_manager

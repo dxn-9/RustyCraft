@@ -1,5 +1,4 @@
 use bytemuck::{Pod, Zeroable};
-use std::collections::HashMap;
 
 use super::block_type::BlockType;
 use crate::chunk::BlockVec;
@@ -7,7 +6,7 @@ use crate::collision::CollisionBox;
 use crate::effects::ao::{convert_ao_u8_to_f32, from_vertex_position};
 use crate::world::CHUNK_SIZE;
 use glam::Vec3;
-use std::sync::{Arc, MutexGuard, RwLock};
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 pub struct Block {
