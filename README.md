@@ -4,15 +4,15 @@
 
 ## Introduction
 
-This a basic minecraft clone and it includes features such as:
+This a basic minecraft clone and it has implemented:
 
--   Heightmap generation via fbm noise map and trees
+-   Map generation via fbm noise
 -   Placing and removing blocks
--   AO
--   Simple AABB and Raycasting for collision detection
--   Multiple render passes for different type of objects
--   Save and load modified chunks/player state
--   Chunk culling based of frustum
+-   Chunk culling based on camera frustum
+-   AABB and Raycasting for collision detection
+-   Multiple render passes for translucency and ui
+-   Save and load chunks/player states
+-   Ambient occlusion and directional light
 
 ---
 
