@@ -158,7 +158,6 @@ impl Pipeline for HighlightSelectedPipeline {
                         })],
                     }),
                     primitive: wgpu::PrimitiveState {
-                        polygon_mode: state.config.polygon_mode,
                         cull_mode: Some(wgpu::Face::Front),
                         ..Default::default()
                     },

@@ -331,9 +331,12 @@ impl Chunk {
         if z < 0 {
             z = NOISE_SIZE as i32 + (z % (NOISE_CHUNK_PER_ROW * CHUNK_SIZE) as i32);
         }
-
-        let y_top = (noise_data[((z * (NOISE_SIZE - 1) as i32) + x) as usize] + 1.0) * 0.5;
-        return (f32::powf(100.0, y_top) - 1.0) as u32;
+        if let Some(v) = noise_data.get((z * (NOISE_SIZE as i32) + x) as usize) {
+            let y_top = (v + 1.0) * 0.5;
+            return (f32::powf(100.0, y_top) - 1.0) as u32;
+        } else {
+            return 0;
+        }
     }
 
     pub fn create_blocks_data(chunk_x: i32, chunk_y: i32, noise_data: Arc<NoiseData>) -> BlockVec {

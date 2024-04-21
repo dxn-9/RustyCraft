@@ -1,6 +1,7 @@
 /target
 .idea
 .vscode
+.vs
 data.txt
 chunks
 data

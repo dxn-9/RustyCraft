@@ -96,7 +96,6 @@ impl Pipeline for TranslucentPipeline {
                         })],
                     }),
                     primitive: wgpu::PrimitiveState {
-                        polygon_mode: state.config.polygon_mode,
                         cull_mode: Some(wgpu::Face::Front),
                         ..Default::default()
                     },

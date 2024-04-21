@@ -124,7 +124,6 @@ impl Pipeline for UIPipeline {
                     }),
 
                     primitive: wgpu::PrimitiveState {
-                        polygon_mode: state.config.polygon_mode,
                         cull_mode: None,
                         ..Default::default()
                     },

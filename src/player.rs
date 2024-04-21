@@ -72,6 +72,19 @@ impl Player {
             0.8,
         )
     }
+    pub fn next_placing_block(&mut self, offset: i32) {
+        // Delta is {1, -1}
+        let placing_block_id = self.placing_block.to_id();
+        let mut next_block_id = (((placing_block_id as i32 + offset as i32)
+            + (BlockType::MAX_ID + 1) as i32)
+            % (BlockType::MAX_ID + 1) as i32) as i32;
+
+        if next_block_id == BlockType::Water.to_id() as i32 {
+            next_block_id += 1 * offset as i32;
+        }
+
+        self.placing_block = BlockType::from_id(next_block_id as u32);
+    }
     // Gets the block that the player is facing
     pub fn get_facing_block<'a>(
         &mut self,

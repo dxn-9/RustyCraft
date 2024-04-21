@@ -265,7 +265,6 @@ impl Pipeline for MainPipeline {
                     }),
 
                     primitive: wgpu::PrimitiveState {
-                        polygon_mode: state.config.polygon_mode,
                         cull_mode: Some(Face::Front),
                         ..Default::default()
                     },

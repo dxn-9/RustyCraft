@@ -33,7 +33,6 @@ pub struct State {
     pub pipeline_manager: PipelineManager,
     pub player: Arc<RwLock<Player>>,
     pub world: World,
-    pub config: Config,
     pub camera_controller: CameraController,
 }
 
@@ -57,7 +56,7 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::POLYGON_MODE_LINE,
+                    features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -101,15 +100,11 @@ impl State {
         }));
 
         surface.configure(&device, &surface_config);
-        let config = Config {
-            polygon_mode: wgpu::PolygonMode::Fill,
-        };
 
         let mut world = World::init_world(device.clone(), queue.clone());
         world.init_chunks(Arc::clone(&player));
 
         let mut state = Self {
-            config,
             player,
             surface_config,
             instance,
@@ -188,13 +183,14 @@ impl State {
             } => self.camera_controller.movement_vector.y = -1.0 * is_pressed,
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::KeyK),
+                state: winit::event::ElementState::Pressed,
                 ..
-            } => self
-                .window
-                .lock()
-                .unwrap()
-                .set_cursor_grab(CursorGrabMode::Confined)
-                .unwrap(),
+            } => player.next_placing_block(-1),
+            KeyEvent {
+                physical_key: PhysicalKey::Code(KeyCode::KeyJ),
+                state: winit::event::ElementState::Pressed,
+                ..
+            } => player.next_placing_block(1),
             KeyEvent {
                 physical_key: PhysicalKey::Code(KeyCode::Space),
                 state: winit::event::ElementState::Pressed,
@@ -211,17 +207,6 @@ impl State {
                 ..
             } => {
                 player.is_ghost = !player.is_ghost;
-            }
-            KeyEvent {
-                physical_key: PhysicalKey::Code(KeyCode::KeyF),
-                state: winit::event::ElementState::Pressed,
-                ..
-            } => {
-                if self.config.polygon_mode == wgpu::PolygonMode::Line {
-                    self.config.polygon_mode = wgpu::PolygonMode::Fill
-                } else {
-                    self.config.polygon_mode = wgpu::PolygonMode::Line
-                }
             }
             _ => {}
         }
@@ -258,17 +243,10 @@ impl State {
         }
     }
     pub fn handle_wheel(&mut self, delta: f32) {
-        // Delta is {1.0, -1.0}
-        let palcing_block_id = self.player.read().unwrap().placing_block.to_id();
-        let mut next_block_id = (((palcing_block_id as i32 + delta as i32)
-            + (BlockType::MAX_ID + 1) as i32)
-            % (BlockType::MAX_ID + 1) as i32) as i32;
-
-        if next_block_id == BlockType::Water.to_id() as i32 {
-            next_block_id += 1 * delta as i32;
-        }
-
-        self.player.write().unwrap().placing_block = BlockType::from_id(next_block_id as u32);
+        self.player
+            .write()
+            .unwrap()
+            .next_placing_block(delta as i32);
     }
     pub fn handle_mouse(&mut self, delta: &glam::Vec2) {
         self.player.write().unwrap().camera.move_target(delta)
