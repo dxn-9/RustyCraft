@@ -1,3 +1,7 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 use state::State;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -105,6 +109,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     WindowEvent::RedrawRequested => {
                         frames += 1;
 
+                        #[cfg(debug_assertions)]
                         if fps_counter.elapsed().as_secs() >= 3 {
                             fps_counter = Instant::now();
                             println!("\x1b[32mFPS - {}\x1b[0m", frames / 3);

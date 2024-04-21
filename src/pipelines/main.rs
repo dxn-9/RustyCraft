@@ -135,8 +135,9 @@ impl Pipeline for MainPipeline {
                     usage: wgpu::BufferUsages::UNIFORM,
                 });
 
-        let texture_atlas = Texture::from_path(
-            "assets/tex_atlas.png",
+        let image_bytes = include_bytes!("../../assets/tex_atlas.png");
+        let texture_atlas = Texture::from_bytes(
+            image_bytes,
             "tex_atlas".to_string(),
             &state.device,
             &state.queue,

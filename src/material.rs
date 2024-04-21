@@ -114,6 +114,62 @@ impl Texture {
         }
     }
 
+    pub fn from_bytes(
+        bytes: &[u8],
+        name: String,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let image = image::load_from_memory(bytes)?;
+        let dimensions = image.dimensions();
+        let rgba = image.as_rgba8().unwrap();
+
+        let size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(&name.clone()),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            view_formats: &[],
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        });
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * dimensions.0),
+                rows_per_image: Some(dimensions.1),
+            },
+            size,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            ..Default::default()
+        });
+
+        Ok(Self {
+            view,
+            sampler,
+            texture,
+            name,
+            data: None,
+        })
+    }
     pub fn from_path(
         path: &str,
         name: String,
