@@ -71,20 +71,20 @@ impl Player {
     pub fn next_placing_block(&mut self, offset: i32) {
         // Delta is {1, -1}
         let placing_block_id = self.placing_block.to_id();
-        let mut next_block_id = (((placing_block_id as i32 + offset as i32)
+        let mut next_block_id = (((placing_block_id as i32 + offset)
             + (BlockType::MAX_ID + 1) as i32)
-            % (BlockType::MAX_ID + 1) as i32) as i32;
+            % (BlockType::MAX_ID + 1) as i32);
 
         if next_block_id == BlockType::Water.to_id() as i32 {
-            next_block_id += 1 * offset as i32;
+            next_block_id += offset;
         }
 
         self.placing_block = BlockType::from_id(next_block_id as u32);
     }
     // Gets the block that the player is facing
-    pub fn get_facing_block<'a>(
+    pub fn get_facing_block(
         &mut self,
-        blocks: &'a Vec<Arc<RwLock<Block>>>,
+        blocks: &Vec<Arc<RwLock<Block>>>,
     ) -> Option<(CollisionBox, FaceDirections)> {
         let forward = self.camera.get_forward_dir();
         let mut ray_results: Vec<RayResult> = vec![];
@@ -123,12 +123,12 @@ impl Player {
             if closest_point.distance(self.camera.eye) < max_distance {
                 max_distance = closest_point.distance(self.camera.eye);
                 block_collision = Some(&result.collision);
-                point = Some(closest_point.clone());
+                point = Some(closest_point);
             }
         }
         let mut face_direction = None;
 
-        return match (block_collision, point) {
+        match (block_collision, point) {
             (Some(block_collision), Some(point)) => {
                 // TODO: This can be precomputed
                 let point_dir = ((block_collision.center() - point).normalize()) * -1.0;
@@ -145,7 +145,7 @@ impl Player {
                 Some((block_collision.clone(), *face_direction.unwrap()))
             }
             _ => None,
-        };
+        }
     }
     pub fn calc_current_chunk(&self) -> (i32, i32) {
         (
@@ -358,7 +358,7 @@ impl Camera {
 
 impl Saveable<glam::Vec3> for Camera {
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        if let Ok(_) = std::fs::create_dir("data") {
+        if std::fs::create_dir("data").is_ok() {
             println!("Created dir");
         }
         let data = format!(
@@ -376,13 +376,13 @@ impl Saveable<glam::Vec3> for Camera {
 impl Loadable<(glam::Vec3, f32, f32)> for Camera {
     fn load(_: Box<dyn Any>) -> Result<(Vec3, f32, f32), Box<dyn Error>> {
         let data = String::from_utf8(std::fs::read("data/player")?)?;
-        let mut data = data.split(",");
+        let mut data = data.split(',');
         let x = data.next().unwrap().parse::<f32>().unwrap();
         let y = data.next().unwrap().parse::<f32>().unwrap();
         let z = data.next().unwrap().parse::<f32>().unwrap();
         let yaw = data.next().unwrap().parse::<f32>().unwrap();
         let pitch = data.next().unwrap().parse::<f32>().unwrap();
 
-        return Ok((glam::vec3(x, y, z), yaw, pitch));
+        Ok((glam::vec3(x, y, z), yaw, pitch))
     }
 }

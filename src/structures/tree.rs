@@ -55,7 +55,7 @@ impl Structure for Tree {
                 BlockType::Leaf,
             )))
         });
-        let blocks = blocks.chain(leafs_iter).collect::<Vec<_>>();
-        return blocks;
+        
+        blocks.chain(leafs_iter).collect::<Vec<_>>()
     }
 }

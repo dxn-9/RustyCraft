@@ -16,7 +16,7 @@ impl Pipeline for HighlightSelectedPipeline {
         view: &wgpu::TextureView,
         _player: &std::sync::RwLockReadGuard<'_, Player>,
         _chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
-    ) -> () {
+    ) {
         let main_pipeline_ref = state
             .pipeline_manager
             .main_pipeline

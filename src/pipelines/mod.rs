@@ -21,7 +21,7 @@ pub trait Pipeline {
         view: &wgpu::TextureView,
         player: &RwLockReadGuard<'_, Player>,
         chunks: &Vec<RwLockReadGuard<'_, Chunk>>,
-    ) -> ();
+    );
 }
 mod highlight_selected;
 mod main;

@@ -9,7 +9,7 @@ pub mod ao {
         if side1 && side2 {
             return 0;
         }
-        return 3 - (side1 as u8 + side2 as u8 + up as u8);
+        3 - (side1 as u8 + side2 as u8 + up as u8)
     }
     pub(crate) fn from_vertex_position(
         vertex_position: &glam::Vec3,
@@ -55,7 +55,7 @@ pub mod ao {
                 }
             }
         }
-        return calc_vertex_ao(has_side1, has_side2, has_corner);
+        calc_vertex_ao(has_side1, has_side2, has_corner)
     }
     // ao -> 1 (max)
     // ao -> 0 (min)

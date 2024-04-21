@@ -124,7 +124,7 @@ impl State {
         };
         state.pipeline_manager = PipelineManager::init(&state);
 
-        return state;
+        state
     }
     pub fn save_state(&mut self) {
         self.player
@@ -256,7 +256,7 @@ impl State {
             self.surface_config.width = new_size.width.max(1);
             self.surface_config.height = new_size.height.max(1);
             self.surface.configure(&self.device, &self.surface_config);
-            let new_depth = Texture::create_depth_texture(&self);
+            let new_depth = Texture::create_depth_texture(self);
             self.pipeline_manager
                 .main_pipeline
                 .as_mut()
@@ -306,7 +306,7 @@ impl State {
             Arc::clone(&self.queue),
             Arc::clone(&self.device),
         );
-        self.pipeline_manager.update(&self).expect("Update failed");
+        self.pipeline_manager.update(self).expect("Update failed");
     }
     pub fn draw(&mut self) {
         let frame = self
@@ -336,7 +336,7 @@ impl State {
             .as_ref()
             .unwrap()
             .borrow()
-            .render(&self, &mut encoder, &view, &player, &chunks);
+            .render(self, &mut encoder, &view, &player, &chunks);
 
         // Draw translucent pipeline
         let _ = &self
@@ -345,7 +345,7 @@ impl State {
             .as_ref()
             .unwrap()
             .borrow()
-            .render(&self, &mut encoder, &view, &player, &chunks);
+            .render(self, &mut encoder, &view, &player, &chunks);
 
         let _ = &self
             .pipeline_manager
@@ -353,7 +353,7 @@ impl State {
             .as_ref()
             .unwrap()
             .borrow()
-            .render(&self, &mut encoder, &view, &player, &chunks);
+            .render(self, &mut encoder, &view, &player, &chunks);
 
         let _ = &self
             .pipeline_manager
@@ -361,7 +361,7 @@ impl State {
             .as_ref()
             .unwrap()
             .borrow()
-            .render(&self, &mut encoder, &view, &player, &chunks);
+            .render(self, &mut encoder, &view, &player, &chunks);
 
         self.queue.submit(Some(encoder.finish()));
         frame.present();

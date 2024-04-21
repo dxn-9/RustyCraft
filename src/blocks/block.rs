@@ -78,18 +78,18 @@ impl FaceDirections {
 
         unique_indices.iter().enumerate().for_each(|(i, index)| {
             let vertex_position = glam::vec3(
-                CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.absolute_position.x,
-                CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.absolute_position.y,
-                CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.absolute_position.z,
+                CUBE_VERTEX[*index as usize * 3_usize] + block_read.absolute_position.x,
+                CUBE_VERTEX[*index as usize * 3 + 1] + block_read.absolute_position.y,
+                CUBE_VERTEX[*index as usize * 3 + 2] + block_read.absolute_position.z,
             );
 
             vertex_data.push(BlockVertexData {
                 position: [
-                    CUBE_VERTEX[(*index as usize * 3 + 0) as usize] + block_read.position.x,
-                    CUBE_VERTEX[(*index as usize * 3 + 1) as usize] + block_read.position.y,
-                    CUBE_VERTEX[(*index as usize * 3 + 2) as usize] + block_read.position.z,
+                    CUBE_VERTEX[*index as usize * 3_usize] + block_read.position.x,
+                    CUBE_VERTEX[*index as usize * 3 + 1] + block_read.position.y,
+                    CUBE_VERTEX[*index as usize * 3 + 2] + block_read.position.z,
                 ],
-                ao: convert_ao_u8_to_f32(from_vertex_position(&vertex_position, &blocks)),
+                ao: convert_ao_u8_to_f32(from_vertex_position(&vertex_position, blocks)),
                 normal: normals.into(),
                 tex_coords: face_texcoords[i],
             })
@@ -144,19 +144,19 @@ impl Block {
         if self.position.z == 0.0 {
             neighbour_chunks.push((chunk.0, chunk.1 - 1));
         }
-        return neighbour_chunks;
+        neighbour_chunks
     }
     pub fn is_on_chunk_border(&self) -> bool {
-        return self.position.x == 0.0
+        self.position.x == 0.0
             || self.position.x == 15.0
             || self.position.z == 0.0
-            || self.position.z == 15.0;
+            || self.position.z == 15.0
     }
     pub fn get_chunk_coords(&self) -> (i32, i32) {
-        return (
+        (
             (f32::floor(self.absolute_position.x / CHUNK_SIZE as f32)) as i32,
             (f32::floor(self.absolute_position.z / CHUNK_SIZE as f32)) as i32,
-        );
+        )
     }
     pub fn get_vertex_data_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

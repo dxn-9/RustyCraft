@@ -24,11 +24,11 @@ impl Pipeline for MainPipeline {
         view: &wgpu::TextureView,
         player: &std::sync::RwLockReadGuard<'_, Player>,
         chunks: &Vec<std::sync::RwLockReadGuard<'_, crate::chunk::Chunk>>,
-    ) -> () {
+    ) {
         let mut main_rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {

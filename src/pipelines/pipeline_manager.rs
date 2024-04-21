@@ -19,9 +19,9 @@ pub struct PipelineManager {
 impl PipelineManager {
     pub fn render(
         &self,
-        encoder: &mut CommandEncoder,
-        view: &TextureView,
-        main_pipeline: &MainPipeline,
+        _encoder: &mut CommandEncoder,
+        _view: &TextureView,
+        _main_pipeline: &MainPipeline,
     ) {
         todo!();
     }
@@ -39,7 +39,7 @@ impl PipelineManager {
             state, &pipeline,
         )));
         pipeline.ui_pipeline = Some(RefCell::new(UIPipeline::init(state, &pipeline)));
-        return pipeline;
+        pipeline
     }
 
     pub fn update(&self, state: &State) -> Result<(), Box<dyn std::error::Error>> {
@@ -47,23 +47,23 @@ impl PipelineManager {
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, state)?;
+            .update(self, state)?;
         self.translucent_pipeline
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, state)?;
+            .update(self, state)?;
         self.highlight_selected_pipeline
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, state)?;
+            .update(self, state)?;
         self.ui_pipeline
             .as_ref()
             .unwrap()
             .borrow_mut()
-            .update(&self, state)?;
+            .update(self, state)?;
 
-        return Ok(());
+        Ok(())
     }
 }

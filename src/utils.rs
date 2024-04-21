@@ -23,7 +23,7 @@ pub(crate) mod noise {
     const WRAP: u32 = 256;
     lazy_static! {
         pub static ref PERM_TABLE: Vec<u32> = {
-            let mut table: Vec<u32> = (0..WRAP).map(|i| i as u32).collect();
+            let mut table: Vec<u32> = (0..WRAP).collect();
             shuffle(&mut table);
             for i in 0..WRAP {
                 table.push(table[i as usize]);
@@ -43,10 +43,7 @@ pub(crate) mod noise {
             } else {
                 0
             };
-            let temp = vec[i].clone();
-
-            vec[i] = vec[a];
-            vec[a] = temp;
+            vec.swap(i, a);
         }
         vec
     }
@@ -82,14 +79,14 @@ pub(crate) mod noise {
                 + (y - grid_y as f32) * get_corner_consts(hashed).y;
             poly_x * poly_y * grad
         };
-        return f32::clamp(
+        f32::clamp(
             surflet(int_x, int_y)
-                + surflet(int_x + 1, int_y + 0)
-                + surflet(int_x + 0, int_y + 1)
+                + surflet(int_x + 1, int_y)
+                + surflet(int_x, int_y + 1)
                 + surflet(int_x + 1, int_y + 1),
             -1.0,
             1.0,
-        );
+        )
     }
     pub fn fbm(x: f32, y: f32, per: u32, octs: u32) -> f32 {
         let mut val: f32 = 0.0;
@@ -184,20 +181,20 @@ pub trait RelativeFromAbsolute {
 
 impl RelativeFromAbsolute for glam::Vec3 {
     fn relative_from_absolute(&self) -> Vec3 {
-        return vec3(
+        vec3(
             ((f32::floor(self.x) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
             f32::max(f32::floor(self.y), 0.0),
             ((f32::floor(self.z) % CHUNK_SIZE as f32) + CHUNK_SIZE as f32) % CHUNK_SIZE as f32,
-        );
+        )
     }
 }
 
 impl ChunkFromPosition for glam::Vec3 {
     fn get_chunk_from_position_absolute(&self) -> (i32, i32) {
-        return (
+        (
             (f32::floor(self.x / CHUNK_SIZE as f32)) as i32,
             (f32::floor(self.z / CHUNK_SIZE as f32)) as i32,
-        );
+        )
     }
 }
 

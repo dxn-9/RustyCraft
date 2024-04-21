@@ -144,7 +144,7 @@ fn get_base_coords(config: &BlockTypeConfigs, face_dir: FaceDirections) -> glam:
 
     let low_bound = y_offset * BLOCK_OFFSET_NORMALIZED + BLOCK_OFFSET_NORMALIZED;
     let left_bound = x_offset * BLOCK_OFFSET_NORMALIZED;
-    return glam::vec2(left_bound, low_bound);
+    glam::vec2(left_bound, low_bound)
 }
 fn get_tex_coords(config: &BlockTypeConfigs, face_dir: FaceDirections) -> [[f32; 2]; 4] {
     let bc = get_base_coords(config, face_dir);

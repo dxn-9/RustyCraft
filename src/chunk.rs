@@ -73,7 +73,7 @@ impl Chunk {
     pub fn block_type_at(&self, position: &glam::Vec3) -> Option<BlockType> {
         let block = self.get_block_at_relative(position)?;
         let block_type = block.read().unwrap().block_type;
-        Some(block_type.clone())
+        Some(block_type)
     }
     pub fn exists_block_at(&self, position: &glam::Vec3) -> bool {
         if let Some(y_blocks) = self
@@ -83,12 +83,12 @@ impl Chunk {
             .get(((position.x as u32 * CHUNK_SIZE) + position.z as u32) as usize)
         {
             if let Some(block_opt) = y_blocks.get(position.y as usize) {
-                if let Some(_) = block_opt {
+                if block_opt.is_some() {
                     return true;
                 }
             }
         }
-        return false;
+        false
     }
     pub fn get_block_at_relative(&self, position: &glam::Vec3) -> Option<Arc<RwLock<Block>>> {
         if let Some(y_blocks) = self
@@ -101,25 +101,15 @@ impl Chunk {
                 return Some(Arc::clone(block));
             }
         }
-        return None;
+        None
     }
     pub fn is_outside_chunk(position: &glam::Vec3) -> bool {
-        if position.x < 0.0
+        position.x < 0.0
             || position.x >= CHUNK_SIZE as f32
-            || position.z < 0.0
-            || position.z >= CHUNK_SIZE as f32
-        {
-            true
-        } else {
-            false
-        }
+            || position.z < 0.0 || position.z >= CHUNK_SIZE as f32
     }
     pub fn is_outside_bounds(position: &glam::Vec3) -> bool {
-        if position.y < 0.0 {
-            true
-        } else {
-            false
-        }
+        position.y < 0.0
     }
     /*
     Return tuple:
@@ -333,9 +323,9 @@ impl Chunk {
         }
         if let Some(v) = noise_data.get((z * (NOISE_SIZE as i32) + x) as usize) {
             let y_top = (v + 1.0) * 0.5;
-            return (f32::powf(100.0, y_top) - 1.0) as u32;
+            (f32::powf(100.0, y_top) - 1.0) as u32
         } else {
-            return 0;
+            0
         }
     }
 
@@ -370,7 +360,7 @@ impl Chunk {
                 }
                 // Fill with water empty blocks
                 for y in curr.len()..=(WATER_HEIGHT_LEVEL as usize) {
-                    if let None = curr.get(y) {
+                    if curr.get(y).is_none() {
                         let block = Arc::new(RwLock::new(Block::new(
                             glam::vec3(x as f32, y as f32, z as f32),
                             (chunk_x, chunk_y),
@@ -416,7 +406,7 @@ impl Chunk {
                 {
                     continue;
                 }
-                let highest_block_position = highest_block.absolute_position.clone();
+                let highest_block_position = highest_block.absolute_position;
 
                 tree_blocks.append(&mut crate::structures::Tree::get_blocks(
                     highest_block_position,
@@ -549,13 +539,13 @@ impl Chunk {
         if !was_loaded {
             chunk.place_trees();
         }
-        return chunk;
+        chunk
     }
 }
 
 impl Saveable<Chunk> for Chunk {
     fn save(&self) -> Result<(), Box<dyn Error>> {
-        if let Ok(_) = std::fs::create_dir("data") {
+        if std::fs::create_dir("data").is_ok() {
             println!("Created dir");
         }
         let mut data = String::new();
@@ -591,10 +581,10 @@ impl Loadable<BlockVec> for Chunk {
                 let mut coords = filename_chunk
                     .to_str()
                     .unwrap()
-                    .split("k")
+                    .split('k')
                     .last()
                     .expect("Invalid filename")
-                    .split("_");
+                    .split('_');
                 let x = coords.next().unwrap().parse::<i32>()?;
                 let y = coords.next().unwrap().parse::<i32>()?;
 
@@ -603,7 +593,7 @@ impl Loadable<BlockVec> for Chunk {
                 if *chunk_position == (x, y) {
                     let file_contents = std::fs::read_to_string(format!("data/chunk{}_{}", x, y))?;
                     for line in file_contents.lines() {
-                        let mut i = line.split(",");
+                        let mut i = line.split(',');
                         let bx = i.next().unwrap().parse::<u32>()?;
                         let by = i.next().unwrap().parse::<u32>()?;
                         let bz = i.next().unwrap().parse::<u32>()?;
@@ -630,6 +620,6 @@ impl Loadable<BlockVec> for Chunk {
                 }
             }
         }
-        return Err("Not valid args".into());
+        Err("Not valid args".into())
     }
 }

@@ -125,7 +125,7 @@ impl World {
         let relative_position = position.relative_from_absolute();
         let block = chunk.get_block_at_relative(&relative_position)?;
 
-        return Some(block);
+        Some(block)
     }
     pub fn get_blocks_nearby(&self, player: Arc<RwLock<Player>>) -> Vec<Arc<RwLock<Block>>> {
         let player = player.read().unwrap();
@@ -146,7 +146,7 @@ impl World {
             };
         }
 
-        return nearby_blocks;
+        nearby_blocks
     }
     pub fn update(
         &mut self,
@@ -196,7 +196,7 @@ impl World {
                 .iter()
                 .filter_map(|c| {
                     if new_chunks_positions.contains(c) {
-                        Some(c.clone())
+                        Some(*c)
                     } else {
                         None
                     }
@@ -209,7 +209,7 @@ impl World {
                 if (delta.1 != 0 && key.1 == chunk_y_remove)
                     || (delta.0 != 0 && key.0 == chunk_x_remove)
                 {
-                    keys_to_remove.push(key.clone());
+                    keys_to_remove.push(*key);
                 }
             }
 
@@ -278,7 +278,7 @@ impl World {
         {
             let (sender, receiver) = mpsc::channel();
             for chunk in self.chunks.read().unwrap().values() {
-                let chunk = Arc::clone(&chunk);
+                let chunk = Arc::clone(chunk);
                 let sender = sender.clone();
                 let player = Arc::clone(&player);
                 self.thread_pool.as_ref().unwrap().execute(move || {
@@ -399,7 +399,7 @@ impl World {
             if let Some(chunkptr) = self.chunks.read().unwrap().get(&chunk_coords) {
                 let mut chunkbrw = chunkptr.write().unwrap();
                 chunkbrw.add_block(block.clone(), false);
-                if let None = chunks_to_rerender.iter().find(|c| Arc::ptr_eq(c, chunkptr)) {
+                if !chunks_to_rerender.iter().any(|c| Arc::ptr_eq(&c, chunkptr)) {
                     chunks_to_rerender.push(chunkptr.clone());
                 };
             }

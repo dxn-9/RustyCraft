@@ -77,11 +77,10 @@ impl Texture {
 
         let data: Vec<_> = perlin_noise_data
             .iter()
-            .map(|v| {
+            .flat_map(|v| {
                 let u = f32::round((v + 1.0) * 0.5 * 255.0) as u8;
                 [u, u, u, 255]
             })
-            .flatten()
             .collect();
 
         state.queue.write_texture(
@@ -91,7 +90,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &data.as_slice(),
+            data.as_slice(),
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),
@@ -148,7 +147,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &rgba,
+            rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.0),
@@ -206,7 +205,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &rgba,
+            rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.0),

@@ -78,10 +78,10 @@ impl Ray {
             tmax = tzmax;
         }
 
-        return Some(vec![
+        Some(vec![
             self.origin + self.direction * tmin,
             self.origin + self.direction * tmax,
-        ]);
+        ])
     }
 }
 
@@ -116,7 +116,7 @@ impl CollisionBox {
         }
     }
     pub fn to_block_position(&self) -> glam::Vec3 {
-        return glam::vec3(self.min_x, self.min_y, self.min_z);
+        glam::vec3(self.min_x, self.min_y, self.min_z)
     }
     pub fn new(x: f32, y: f32, z: f32, width: f32, height: f32, depth: f32) -> CollisionBox {
         CollisionBox {
@@ -129,20 +129,20 @@ impl CollisionBox {
         }
     }
     pub fn intersects_point(&self, point: &CollisionPoint) -> bool {
-        return point.x >= self.min_x
+        point.x >= self.min_x
             && point.x <= self.max_x
             && point.y >= self.min_y
             && point.y <= self.max_y
             && point.z >= self.min_z
-            && point.z <= self.max_z;
+            && point.z <= self.max_z
     }
     pub fn intersects(&self, other: &CollisionBox) -> bool {
-        return self.min_x <= other.max_x
+        self.min_x <= other.max_x
             && self.max_x >= other.min_x
             && self.min_y <= other.max_y
             && self.max_y >= other.min_y
             && self.min_z <= other.max_z
-            && self.max_z >= other.min_z;
+            && self.max_z >= other.min_z
     }
     pub fn intersects_direction() {
         todo!()
