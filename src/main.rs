@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 use state::State;
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use winit::dpi::LogicalSize;
@@ -47,7 +48,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     size.width = size.width.max(1);
     size.height = size.height.max(1);
 
-    window.set_cursor_grab(CursorGrabMode::Confined).unwrap();
+    window
+        .set_cursor_grab(CursorGrabMode::Confined)
+        .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
+        .unwrap();
     window.set_cursor_visible(false);
     let window = Arc::new(Mutex::new(window));
     let mut state = State::new(window.clone()).await;
