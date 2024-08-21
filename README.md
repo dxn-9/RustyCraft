@@ -1,10 +1,10 @@
 # RustyCraft
 
-> **This project is learning project for rust and wgpu. Don't take it too serious**
+> **This project is a learning project for rust and wgpu. Don't take it too serious**
 
 ## Introduction
 
-This a basic minecraft clone and it has implemented:
+This is a basic minecraft clone with the following features:
 
 -   Map generation via fbm noise
 -   Placing and removing blocks
@@ -18,11 +18,11 @@ This a basic minecraft clone and it has implemented:
 
 _Commands:_
 
-(WASD) for moving , (Scroll wheel / J-K) change placing block, (G) to toggle flying mode, (Space) jumping
+(WASD) for moving, (Scroll wheel / J-K) change placing block, (G) to toggle flying mode, (Space) jumping
 
 ## Building
 
-Make sure you have rustc and cargo installed an run the following command:
+Make sure you have rustc and cargo installed. Run the following command:
 
 ```bash
 cargo run --release
@@ -34,4 +34,4 @@ cargo run --release
 
 ## Configuration
 
-Most of the configuration for the generation is done through constants in world.rs file.
+Most of the configurations are done through constants in world.rs file.
